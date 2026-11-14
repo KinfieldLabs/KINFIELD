@@ -82,7 +82,7 @@ export function Blotter({ positions, history, prices, onClose }: Props) {
                         <button
                           onClick={() => onClose(p)}
                           disabled={!px}
-                          className="rounded-md border border-line px-2.5 py-1 font-semibold hover:border-cyan/60 disabled:opacity-40"
+                          className="rounded-full border border-line px-2.5 py-1 font-semibold hover:border-cyan/60 disabled:opacity-40"
                         >
                           Close
                         </button>

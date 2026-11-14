@@ -35,12 +35,12 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
 
   return (
     <div className="panel flex flex-col gap-4 p-4">
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-navy-950/60 p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-full bg-navy-950/60 p-1">
         {(["long", "short"] as Side[]).map((s) => (
           <button
             key={s}
             onClick={() => setSide(s)}
-            className={`rounded-md py-2 text-sm font-semibold capitalize transition ${
+            className={`rounded-full py-2 text-sm font-semibold capitalize transition ${
               side === s
                 ? s === "long"
                   ? "bg-long text-navy-950"
@@ -62,14 +62,14 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
           inputMode="decimal"
           value={size}
           onChange={(e) => setSize(e.target.value.replace(/[^0-9.]/g, ""))}
-          className="rounded-lg border border-line bg-navy-950/60 px-3 py-2 font-mono text-sm outline-none focus:border-cyan/60"
+          className="rounded-full border border-line bg-navy-950/60 px-3 py-2 font-mono text-sm outline-none focus:border-cyan/60"
         />
         <div className="grid grid-cols-4 gap-1">
           {[0.1, 0.25, 0.5, 1].map((f) => (
             <button
               key={f}
               onClick={() => setSize(String(Math.floor(freeMargin * lev * f * 0.995)))}
-              className="rounded-md border border-line py-1 text-xs text-muted hover:border-cyan/50 hover:text-cream"
+              className="rounded-full border border-line py-1 text-xs text-muted hover:border-cyan/50 hover:text-cream"
             >
               {f * 100}%
             </button>
@@ -117,7 +117,7 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
           rows={2}
           maxLength={280}
           placeholder="e.g. Reclaimed the hourly high on rising volume"
-          className="resize-none rounded-lg border border-line bg-navy-950/60 px-3 py-2 text-sm outline-none placeholder:text-muted/60 focus:border-cyan/60"
+          className="resize-none rounded-2xl border border-line bg-navy-950/60 px-3 py-2 text-sm outline-none placeholder:text-muted/60 focus:border-cyan/60"
         />
       </label>
 
@@ -133,7 +133,7 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
       <button
         onClick={submit}
         disabled={!!error || !price || !ready}
-        className={`rounded-lg py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`rounded-full py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
           side === "long" ? "bg-long text-navy-950" : "bg-short text-navy-950"
         }`}
       >

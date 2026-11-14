@@ -160,8 +160,8 @@ export function Terminal() {
           <div className="panel flex flex-col">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-3">
               <div className="flex items-baseline gap-3">
-                <span className="text-lg font-bold">{coin}-USD</span>
-                <span className="font-mono text-lg">{market ? fmtPx(market.mid) : "—"}</span>
+                <span className="text-2xl tracking-[-0.03em]">{coin}-USD</span>
+                <span className="font-mono text-xl font-light">{market ? fmtPx(market.mid) : "—"}</span>
               </div>
               {market && (
                 <div className="flex gap-5 text-xs">
@@ -170,12 +170,12 @@ export function Terminal() {
                   <Stat label="Funding / 1h" value={fmtPct(market.funding, 4)} className={tone(market.funding)} />
                 </div>
               )}
-              <div className="ml-auto flex gap-1 rounded-lg bg-navy-950/60 p-1">
+              <div className="ml-auto flex gap-1 rounded-full bg-navy-950/60 p-1">
                 {INTERVALS.map((i) => (
                   <button
                     key={i}
                     onClick={() => setInterval_(i)}
-                    className={`rounded-md px-2.5 py-1 font-mono text-xs ${
+                    className={`rounded-full px-2.5 py-1 font-mono text-xs ${
                       interval === i ? "bg-navy-700 text-cream" : "text-muted hover:text-cream"
                     }`}
                   >
@@ -234,7 +234,7 @@ export function Terminal() {
 function Stat({ label, value, className = "" }: { label: string; value: string; className?: string }) {
   return (
     <div className="flex flex-col leading-tight">
-      <span className="text-[10px] uppercase tracking-wider text-muted">{label}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted">{label}</span>
       <span className={`font-mono ${className}`}>{value}</span>
     </div>
   );

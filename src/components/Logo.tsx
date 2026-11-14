@@ -14,9 +14,9 @@ export function Mark({ className = "h-7 w-7", color = "currentColor" }: { classN
 
 export function Logo({ href = "/" }: { href?: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3 text-cream">
-      <Mark className="h-8 w-8" />
-      <span className="text-[15px] font-semibold tracking-[0.42em]">KINFIELD</span>
+    <Link href={href} className="group flex items-center gap-3 text-cream">
+      <Mark className="h-7 w-7 transition-transform duration-700 ease-[var(--ease-out)] group-hover:rotate-90" />
+      <span className="text-[14px] font-semibold tracking-[0.42em]">KINFIELD</span>
     </Link>
   );
 }

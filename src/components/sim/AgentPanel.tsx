@@ -40,7 +40,7 @@ export function AgentPanel({ coin, history, features }: Props) {
       </div>
 
       {!model ? (
-        <div className="text-sm leading-relaxed text-muted">
+        <div className="text-sm font-light leading-relaxed text-mist">
           Close {Math.max(MIN_SAMPLES - labeled, 1)} more trade{MIN_SAMPLES - labeled === 1 ? "" : "s"} to train your
           agent. It learns which direction paid off in the market conditions you chose to trade.
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-navy-950">
@@ -59,7 +59,7 @@ export function AgentPanel({ coin, history, features }: Props) {
             ) : (
               <>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className={`text-2xl font-bold ${pLong >= 0.5 ? "text-long" : "text-short"}`}>
+                  <span className={`text-3xl tracking-[-0.03em] ${pLong >= 0.5 ? "text-long" : "text-short"}`}>
                     {pLong >= 0.55 ? "Lean long" : pLong <= 0.45 ? "Lean short" : "No edge"}
                   </span>
                   <span className="font-mono text-sm text-muted">{(pLong * 100).toFixed(0)}% long</span>
@@ -102,7 +102,7 @@ export function AgentPanel({ coin, history, features }: Props) {
       <button
         onClick={exportData}
         disabled={!history.length}
-        className="rounded-lg border border-line py-2 text-xs font-semibold text-cream transition hover:border-cyan/60 disabled:opacity-40"
+        className="rounded-full border border-line py-2 text-xs font-semibold text-cream transition hover:border-cyan/60 disabled:opacity-40"
       >
         Export training data (.jsonl)
       </button>
