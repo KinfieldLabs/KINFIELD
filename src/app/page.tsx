@@ -59,14 +59,6 @@ export default function Home() {
                 Train the next generation of AI trading agents. Test your strategies in simulated markets and help
                 agents learn from your trades.
               </p>
-              <div className="reveal mt-10 flex flex-wrap items-center gap-8" style={i(2)}>
-                <Link href="/simulate" className="btn-primary">
-                  Start simulating <span className="arrow">→</span>
-                </Link>
-                <a href="#how" className="link-ghost t-label">
-                  How it works
-                </a>
-              </div>
             </InView>
           </div>
           <div className="pointer-events-none absolute inset-0 lg:pointer-events-auto lg:relative lg:inset-auto lg:h-[min(76vh,720px)]">

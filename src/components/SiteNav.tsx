@@ -32,7 +32,7 @@ export function SiteNav() {
             Features
           </a>
           <Link href="/simulate" className="btn-primary whitespace-nowrap !px-4 !py-2.5 !text-sm sm:!px-5">
-            Launch<span className="hidden sm:inline">&nbsp;simulator</span>
+            Launch<span className="-ml-[0.35rem] hidden sm:inline">simulator</span>
           </Link>
         </nav>
       </div>
