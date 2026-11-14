@@ -6,7 +6,7 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"], weight: ["20
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Kinfield — Teach agents to trade",
+  title: "Kinfield: Teach agents to trade",
   description:
     "Train the next generation of AI trading agents. Test your strategies in simulated markets and help agents learn from your trades. Powered by Hyperliquid.",
   icons: { icon: "/brand/mark.svg" },

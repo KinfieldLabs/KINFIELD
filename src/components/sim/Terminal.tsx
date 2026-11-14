@@ -119,7 +119,7 @@ export function Terminal() {
           <Stat label="Return" value={fmtPct(equity / STARTING_BALANCE - 1)} className={tone(equity - STARTING_BALANCE)} />
           <Stat
             label="Win rate"
-            value={state.history.length ? `${((wins / state.history.length) * 100).toFixed(0)}%` : "—"}
+            value={state.history.length ? `${((wins / state.history.length) * 100).toFixed(0)}%` : "N/A"}
           />
           <button
             onClick={() => confirm("Reset your simulated account and trade log?") && reset()}
@@ -161,7 +161,7 @@ export function Terminal() {
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-3">
               <div className="flex items-baseline gap-3">
                 <span className="text-2xl tracking-[-0.03em]">{coin}-USD</span>
-                <span className="font-mono text-xl font-light">{market ? fmtPx(market.mid) : "—"}</span>
+                <span className="font-mono text-xl font-light">{market ? fmtPx(market.mid) : "…"}</span>
               </div>
               {market && (
                 <div className="flex gap-5 text-xs">

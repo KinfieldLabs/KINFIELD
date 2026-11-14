@@ -10,7 +10,7 @@ const steps = [
   {
     n: "01",
     title: "Simulate",
-    body: "Trade perpetuals against live Hyperliquid prices with a paper balance. No wallet, no risk — real market conditions.",
+    body: "Trade perpetuals against live Hyperliquid prices with a paper balance. No wallet, no risk: real market conditions.",
   },
   {
     n: "02",
@@ -20,7 +20,7 @@ const steps = [
   {
     n: "03",
     title: "Teach",
-    body: "Every trade becomes a labeled example: market context, decision, rationale and outcome. Agents learn from what you did — and how it went.",
+    body: "Every trade becomes a labeled example: market context, decision, rationale and outcome. Agents learn from what you did and how it went.",
   },
 ];
 
@@ -28,7 +28,7 @@ const features = [
   ["Live market data", "Mid prices and candles stream straight from Hyperliquid's public API."],
   ["Labeled trade dataset", "Each round trip is captured with the market state at entry. Export it as JSONL."],
   ["Apprentice agent", "A baseline agent trains on your trades in the browser and shows how it would act right now."],
-  ["Strategy tags", "Momentum, mean reversion, breakout, news — structure your intent so it can be learned."],
+  ["Strategy tags", "Momentum, mean reversion, breakout, news: structure your intent so it can be learned."],
 ];
 
 const i = (n: number) => ({ "--i": n }) as CSSProperties;
@@ -115,8 +115,8 @@ export default function Home() {
           />
           <InView className="mt-12 grid gap-10 md:grid-cols-2 lg:ml-[40%] lg:grid-cols-1">
             <p className="reveal t-body max-w-lg" style={i(0)}>
-              Kinfield turns your simulated trading into training signal — decisions paired with context, intent and
-              outcome — so the next generation of agents trades a little more like the best of us.
+              Kinfield turns your simulated trading into training signal: decisions paired with context, intent and
+              outcome, so the next generation of agents trades a little more like the best of us.
             </p>
           </InView>
         </section>

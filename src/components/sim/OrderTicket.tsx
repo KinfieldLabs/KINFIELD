@@ -93,7 +93,7 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
       </label>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-muted">Strategy — teaches the agent your intent</span>
+        <span className="text-xs text-muted">Strategy: teaches the agent your intent</span>
         <div className="flex flex-wrap gap-1">
           {STRATEGIES.map((s) => (
             <button
@@ -123,7 +123,7 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
 
       <dl className="grid grid-cols-2 gap-y-1 text-xs">
         <dt className="text-muted">Est. entry</dt>
-        <dd className="text-right font-mono">{price ? fmtPx(price) : "—"}</dd>
+        <dd className="text-right font-mono">{price ? fmtPx(price) : "…"}</dd>
         <dt className="text-muted">Margin required</dt>
         <dd className="text-right font-mono">{fmtUsd(required)}</dd>
         <dt className="text-muted">Fee</dt>

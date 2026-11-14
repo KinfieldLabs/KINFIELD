@@ -71,7 +71,7 @@ export function Blotter({ positions, history, prices, onClose }: Props) {
                       </td>
                       <td className={td}>{fmtUsd(p.sizeUsd)}</td>
                       <td className={td}>{fmtPx(p.entryPx)}</td>
-                      <td className={td}>{px ? fmtPx(px) : "—"}</td>
+                      <td className={td}>{px ? fmtPx(px) : "…"}</td>
                       <td className={`${td} text-amber-300/80`}>{fmtPx(liquidationPx(p))}</td>
                       <td className={td}>{fmtUsd(margin(p))}</td>
                       <td className={`${td} ${tone(pnl)}`}>
@@ -94,7 +94,7 @@ export function Blotter({ positions, history, prices, onClose }: Props) {
             </table>
           )
         ) : history.length === 0 ? (
-          <Empty>Closed trades appear here — each one is a training example.</Empty>
+          <Empty>Closed trades appear here: each one is a training example.</Empty>
         ) : (
           <table className="w-full">
             <thead>
@@ -122,7 +122,7 @@ export function Blotter({ positions, history, prices, onClose }: Props) {
                   </td>
                   <td className="px-3 py-2 text-muted">{t.strategy}</td>
                   <td className="max-w-[240px] truncate px-3 py-2 text-muted" title={t.rationale}>
-                    {t.rationale || "—"}
+                    {t.rationale || "None"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">
                     {new Date(t.closedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

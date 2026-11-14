@@ -1,6 +1,6 @@
 import type { Candle } from "./hyperliquid";
 
-/** Market context captured at decision time — what an agent "sees". */
+/** Market context captured at decision time: what an agent "sees". */
 export interface MarketFeatures {
   ret5m: number; // 5-minute return
   ret15m: number; // 15-minute return
