@@ -231,22 +231,6 @@ body {
   transform: scaleX(1);
 }
 
-/* Floating nav pill */
-.nav-pill {
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--navy-950) 55%, transparent);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid transparent;
-  transition:
-    background 0.6s var(--ease-out),
-    border-color 0.6s var(--ease-out);
-}
-.nav-pill.scrolled {
-  border-color: var(--line);
-  background: color-mix(in srgb, var(--navy-950) 75%, transparent);
-}
-
 .pulse-dot {
   animation: pulse 2.4s var(--ease-in-out) infinite;
 }

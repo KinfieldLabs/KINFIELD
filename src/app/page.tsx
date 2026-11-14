@@ -1,10 +1,9 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { Constellation } from "@/components/Constellation";
+import { Constellation, type ShapeName } from "@/components/Constellation";
 import { Logo, Mark } from "@/components/Logo";
 import { InView, Lines, SmoothScroll } from "@/components/motion";
 import { SiteNav } from "@/components/SiteNav";
-import { Waves } from "@/components/Waves";
 
 const steps = [
   {
@@ -33,24 +32,61 @@ const features = [
 
 const i = (n: number) => ({ "--i": n }) as CSSProperties;
 
+/**
+ * A full-height section in the zigzag rhythm. The empty column is where the
+ * page-wide constellation draws this section's figure.
+ */
+function Stage({
+  id,
+  shape,
+  side,
+  children,
+  className = "",
+}: {
+  id?: string;
+  shape: ShapeName;
+  side: "left" | "right";
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      id={id}
+      data-shape={shape}
+      data-side={side}
+      className={`mx-auto grid min-h-[100svh] max-w-[1280px] items-center gap-10 px-6 py-[120px] ${
+        side === "left" ? "lg:grid-cols-[1fr_1.2fr]" : "lg:grid-cols-[1.2fr_1fr]"
+      } ${className}`}
+    >
+      {side === "left" && <div aria-hidden className="hidden lg:block" />}
+      <div className="relative">{children}</div>
+    </section>
+  );
+}
+
 export default function Home() {
   return (
     <div className="relative overflow-hidden">
       <SmoothScroll />
       <div className="grid-bg pointer-events-none absolute inset-x-0 top-0 h-[140vh]" />
+      <Constellation />
       <SiteNav />
 
       <main className="relative z-10">
-        {/* Hero */}
-        <section className="relative mx-auto grid min-h-[100svh] max-w-[1280px] items-center gap-6 px-6 pb-16 pt-32 lg:grid-cols-[1.35fr_1fr]">
-          <div className="relative z-10">
+        {/* Hero: the Kinfield mark */}
+        <section
+          data-shape="mark"
+          data-side="right"
+          className="mx-auto grid min-h-[100svh] max-w-[1280px] items-center px-6 pb-16 pt-32 lg:grid-cols-[1.35fr_1fr]"
+        >
+          <div>
             <InView onMount>
               <div className="reveal mb-8 inline-flex items-center gap-2.5 text-muted" style={i(0)}>
                 <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan" />
                 <span className="t-label">Powered by Hyperliquid</span>
               </div>
             </InView>
-            <Lines as="h1" onMount className="t-display lg:whitespace-nowrap"lines={["Teach agents", "to trade."]} delay={150} />
+            <Lines as="h1" onMount className="t-display lg:whitespace-nowrap" lines={["Teach agents", "to trade."]} delay={150} />
             <InView onMount className="mt-8 max-w-xl" style={{ "--d": "550ms" } as CSSProperties}>
               <p className="reveal t-h3" style={i(0)}>
                 Simulate strategies. <span className="text-cyan">Train intelligence.</span>
@@ -61,96 +97,88 @@ export default function Home() {
               </p>
             </InView>
           </div>
-          <div className="pointer-events-none absolute inset-0 lg:pointer-events-auto lg:relative lg:inset-auto lg:h-[min(76vh,720px)]">
-            <Constellation className="h-full w-full opacity-40 lg:opacity-100" />
-          </div>
         </section>
 
-        {/* How it works */}
-        <section id="how" className="mx-auto max-w-[1280px] px-6 py-[120px]">
-          <div className="grid gap-16 lg:grid-cols-[1fr_1.15fr]">
-            <div className="lg:sticky lg:top-32 lg:self-start">
-              <InView>
-                <p className="reveal t-label text-cyan">How it works</p>
-              </InView>
-              <Lines className="t-h1 mt-6" lines={["From trade", "to training", "data."]} />
-            </div>
-            <div>
-              {steps.map((s, k) => (
-                <InView key={s.n} className="pb-12" style={{ "--d": `${k * 60}ms` } as CSSProperties}>
-                  <div className="rule" />
-                  <div className="grid grid-cols-[64px_1fr] gap-6 pt-10">
-                    <span className="reveal font-mono text-sm text-cyan" style={i(0)}>
-                      {s.n}
-                    </span>
-                    <div>
-                      <h3 className="reveal t-h2" style={i(1)}>
-                        {s.title}
-                      </h3>
-                      <p className="reveal t-body mt-4 max-w-md" style={i(2)}>
-                        {s.body}
-                      </p>
-                    </div>
-                  </div>
-                </InView>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Statement */}
-        <section id="why" className="mx-auto max-w-[1280px] px-6 py-[120px]">
+        {/* How it works: candlesticks */}
+        <Stage id="how" shape="candles" side="left">
           <InView>
-            <p className="reveal t-label text-cyan">Why Kinfield</p>
+            <p className="reveal t-label text-cyan">How it works</p>
           </InView>
-          <Lines
-            className="t-h1 mt-8 max-w-5xl"
-            lines={[
-              "Agents learn markets",
-              "from data. They learn",
-              <span key="judgment">
-                <span className="text-cyan">judgment</span> from people.
-              </span>,
-            ]}
-          />
-          <InView className="mt-12 grid gap-10 md:grid-cols-2 lg:ml-[40%] lg:grid-cols-1">
-            <p className="reveal t-body max-w-lg" style={i(0)}>
-              Kinfield turns your simulated trading into training signal: decisions paired with context, intent and
-              outcome, so the next generation of agents trades a little more like the best of us.
-            </p>
-          </InView>
-        </section>
-
-        {/* Features */}
-        <section id="features" className="mx-auto max-w-[1280px] px-6 py-[120px]">
-          <div className="grid gap-x-16 gap-y-4 sm:grid-cols-2">
-            {features.map(([t, b], k) => (
-              <InView key={t} className="pb-10" style={{ "--d": `${(k % 2) * 120}ms` } as CSSProperties}>
+          <Lines className="t-h1 mt-6" lines={["From trade", "to training data."]} />
+          <div className="mt-12">
+            {steps.map((s, k) => (
+              <InView key={s.n} className="pb-8" style={{ "--d": `${k * 80}ms` } as CSSProperties}>
                 <div className="rule" />
-                <div className="flex items-start gap-5 pt-8">
-                  <Mark className="reveal mt-1.5 h-5 w-5 shrink-0 text-cyan" />
+                <div className="grid grid-cols-[56px_1fr] gap-4 pt-7">
+                  <span className="reveal font-mono text-sm text-cyan" style={i(0)}>
+                    {s.n}
+                  </span>
                   <div>
                     <h3 className="reveal t-h3" style={i(1)}>
-                      {t}
+                      {s.title}
                     </h3>
                     <p className="reveal t-body mt-3" style={i(2)}>
-                      {b}
+                      {s.body}
                     </p>
                   </div>
                 </div>
               </InView>
             ))}
           </div>
-        </section>
+        </Stage>
 
-        {/* CTA */}
-        <section className="relative mx-auto max-w-[1280px] px-6 py-[140px]">
-          <Waves className="pointer-events-none absolute -right-32 top-0 w-[760px] max-w-none opacity-70" />
+        {/* Why: neural network */}
+        <Stage id="why" shape="network" side="right">
+          <InView>
+            <p className="reveal t-label text-cyan">Why Kinfield</p>
+          </InView>
           <Lines
-            className="t-display relative max-w-4xl"
-            lines={["Your next trade", "could teach", "an agent."]}
+            className="t-h1 mt-6 lg:!text-[4.25rem]"
+            lines={[
+              "Agents learn",
+              "markets from data.",
+              <span key="judgment">
+                They learn <span className="text-cyan">judgment</span>
+              </span>,
+              "from people.",
+            ]}
           />
-          <InView className="relative mt-10 flex flex-wrap items-center gap-8">
+          <InView className="mt-10">
+            <p className="reveal t-body max-w-lg" style={i(0)}>
+              Kinfield turns your simulated trading into training signal: decisions paired with context, intent and
+              outcome, so the next generation of agents trades a little more like the best of us.
+            </p>
+          </InView>
+        </Stage>
+
+        {/* Features: dataset rows */}
+        <Stage id="features" shape="dataset" side="left">
+          <InView>
+            <p className="reveal t-label text-cyan">What you get</p>
+          </InView>
+          <Lines className="t-h1 mt-6" lines={["Every trade", "becomes a lesson."]} />
+          <div className="mt-12 grid gap-x-10 sm:grid-cols-2">
+            {features.map(([t, b], k) => (
+              <InView key={t} className="pb-8" style={{ "--d": `${(k % 2) * 120}ms` } as CSSProperties}>
+                <div className="rule" />
+                <div className="pt-6">
+                  <Mark className="reveal h-4 w-4 text-cyan" />
+                  <h3 className="reveal mt-4 text-xl tracking-[-0.02em]" style={i(1)}>
+                    {t}
+                  </h3>
+                  <p className="reveal t-body mt-2 !text-base" style={i(2)}>
+                    {b}
+                  </p>
+                </div>
+              </InView>
+            ))}
+          </div>
+        </Stage>
+
+        {/* CTA: rising arrow */}
+        <Stage shape="arrow" side="right">
+          <Lines className="t-h1" lines={["Your next trade", "could teach", "an agent."]} />
+          <InView className="mt-10 flex flex-wrap items-center gap-8">
             <Link href="/simulate" className="reveal btn-primary" style={i(0)}>
               Launch simulator <span className="arrow">→</span>
             </Link>
@@ -158,7 +186,7 @@ export default function Home() {
               $100,000 in simulated capital. Live markets. Zero risk.
             </p>
           </InView>
-        </section>
+        </Stage>
       </main>
 
       <footer className="relative z-10">
