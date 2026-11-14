@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+:root {
+  --navy-950: #000c33;
+  --navy-900: #01154d;
+  --navy-850: #021a5c;
+  --navy-800: #06236e;
+  --navy-700: #0c2f85;
+  --line: rgba(120, 170, 255, 0.14);
+  --cream: #fdf8ea;
+  --cyan: #3fc8f0;
+  --cyan-soft: rgba(63, 200, 240, 0.14);
+  --long: #2fd6a0;
+  --short: #ff6b7d;
+  --muted: #8ea3cf;
+}
+
+@theme inline {
+  --color-navy-950: var(--navy-950);
+  --color-navy-900: var(--navy-900);
+  --color-navy-850: var(--navy-850);
+  --color-navy-800: var(--navy-800);
+  --color-navy-700: var(--navy-700);
+  --color-line: var(--line);
+  --color-cream: var(--cream);
+  --color-cyan: var(--cyan);
+  --color-long: var(--long);
+  --color-short: var(--short);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-figtree);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--navy-900);
+  color: var(--cream);
+}
+
+body {
+  font-family: var(--font-figtree), system-ui, sans-serif;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  background: color-mix(in srgb, var(--navy-850) 80%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse at 60% 30%, black 20%, transparent 70%);
+}
+
+::selection {
+  background: var(--cyan);
+  color: var(--navy-950);
+}
