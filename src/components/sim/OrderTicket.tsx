@@ -10,7 +10,8 @@ interface Props {
   freeMargin: number;
   maxLeverage: number;
   ready: boolean;
-  onSubmit: (o: { side: Side; sizeUsd: number; leverage: number; strategy: Strategy; rationale: string }) => void;
+  /** Resolves to an error message, or null when the order filled. */
+  onSubmit: (o: { side: Side; sizeUsd: number; leverage: number; strategy: Strategy; rationale: string }) => Promise<string | null>;
 }
 
 export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSubmit }: Props) {
@@ -19,6 +20,8 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
   const [leverage, setLeverage] = useState(5);
   const [strategy, setStrategy] = useState<Strategy>("Momentum");
   const [rationale, setRationale] = useState("");
+  const [sending, setSending] = useState(false);
+  const [rejected, setRejected] = useState<string | null>(null);
 
   const sizeUsd = Number(size) || 0;
   const lev = Math.min(leverage, maxLeverage);
@@ -27,10 +30,14 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
   const error =
     sizeUsd < 10 ? "Minimum order is $10" : required + fee > freeMargin ? "Not enough free margin" : null;
 
-  const submit = () => {
-    if (error || !price) return;
-    onSubmit({ side, sizeUsd, leverage: lev, strategy, rationale: rationale.trim() });
-    setRationale("");
+  const submit = async () => {
+    if (error || !price || sending) return;
+    setSending(true);
+    setRejected(null);
+    const err = await onSubmit({ side, sizeUsd, leverage: lev, strategy, rationale: rationale.trim() });
+    setSending(false);
+    if (err) setRejected(err);
+    else setRationale("");
   };
 
   return (
@@ -132,13 +139,14 @@ export function OrderTicket({ coin, price, freeMargin, maxLeverage, ready, onSub
 
       <button
         onClick={submit}
-        disabled={!!error || !price || !ready}
+        disabled={!!error || !price || !ready || sending}
         className={`rounded-full py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
           side === "long" ? "bg-long text-navy-950" : "bg-short text-navy-950"
         }`}
       >
-        {!ready ? "Loading market…" : error ?? `${side === "long" ? "Long" : "Short"} ${coin}`}
+        {!ready ? "Loading market…" : sending ? "Filling…" : error ?? `${side === "long" ? "Long" : "Short"} ${coin}`}
       </button>
+      {rejected && <p className="text-xs text-short">Order rejected: {rejected}</p>}
     </div>
   );
 }

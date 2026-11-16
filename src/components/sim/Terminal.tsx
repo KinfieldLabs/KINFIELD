@@ -6,7 +6,9 @@ import { Logo } from "@/components/Logo";
 import { computeFeatures } from "@/lib/features";
 import { fmtCompact, fmtPct, fmtPx, fmtUsd, tone } from "@/lib/format";
 import { fetchCandles, fetchMarkets, MARKETS, type Candle, type Interval, type MarketCtx } from "@/lib/hyperliquid";
-import { liquidationPx, margin, STARTING_BALANCE, unrealized, useSimulator } from "@/lib/sim";
+import { useLedger, useMe } from "@/lib/account";
+import { liquidationPx, margin, unrealized } from "@/lib/sim";
+import { AccountChip } from "./AccountChip";
 import { AgentPanel } from "./AgentPanel";
 import { Blotter } from "./Blotter";
 import { OrderTicket } from "./OrderTicket";
@@ -15,7 +17,11 @@ import { PriceChart } from "./PriceChart";
 const INTERVALS: Interval[] = ["1m", "5m", "15m", "1h"];
 
 export function Terminal() {
-  const { state, open, close, reset } = useSimulator();
+  const { me, signOut } = useMe();
+  const ledger = useLedger(!!me?.user);
+  const { state, liquidated } = ledger;
+  const ready = !!me && ledger.ready;
+  const [notice, setNotice] = useState<string | null>(null);
   const [coin, setCoin] = useState<string>("BTC");
   const [interval, setInterval_] = useState<Interval>("5m");
   const [markets, setMarkets] = useState<Record<string, MarketCtx>>({});
@@ -94,9 +100,9 @@ export function Terminal() {
       const px = prices[p.coin];
       if (!px) continue;
       const liq = liquidationPx(p);
-      if ((p.side === "long" && px <= liq) || (p.side === "short" && px >= liq)) close(p.id, px, true);
+      if ((p.side === "long" && px <= liq) || (p.side === "short" && px >= liq)) liquidated(p, px);
     }
-  }, [prices, state.positions, close]);
+  }, [prices, state.positions, liquidated]);
 
   const upnl = state.positions.reduce((a, p) => a + (prices[p.coin] ? unrealized(p, prices[p.coin]) : 0), 0);
   const used = state.positions.reduce((a, p) => a + margin(p), 0);
@@ -116,17 +122,24 @@ export function Terminal() {
           <Stat label="Equity" value={fmtUsd(equity)} />
           <Stat label="Unrealized" value={fmtUsd(upnl, true)} className={tone(upnl)} />
           <Stat label="Realized" value={fmtUsd(realized, true)} className={tone(realized)} />
-          <Stat label="Return" value={fmtPct(equity / STARTING_BALANCE - 1)} className={tone(equity - STARTING_BALANCE)} />
+          <Stat label="Return" value={fmtPct(equity / ledger.startingBalance - 1)} className={tone(equity - ledger.startingBalance)} />
           <Stat
             label="Win rate"
             value={state.history.length ? `${((wins / state.history.length) * 100).toFixed(0)}%` : "N/A"}
           />
           <button
-            onClick={() => confirm("Reset your simulated account and trade log?") && reset()}
+            onClick={() =>
+              confirm(
+                ledger.mode === "account"
+                  ? "Start a new simulated account? Your current record is archived, not deleted."
+                  : "Reset your simulated account and trade log?",
+              ) && ledger.reset()
+            }
             className="text-muted underline-offset-2 hover:text-cream hover:underline"
           >
             Reset
           </button>
+          <AccountChip me={me} onSignOut={signOut} />
         </div>
       </header>
 
@@ -149,6 +162,27 @@ export function Terminal() {
         })}
       </div>
 
+      {me && !me.user && (
+        <div className="border-b border-line bg-navy-900/60 px-4 py-2 text-xs text-muted">
+          Guest mode: trades stay in this browser only.{" "}
+          {me.signIn.available
+            ? "Sign in to keep a verified track record your agent can be judged on."
+            : "Accounts are not set up on this server yet."}
+        </div>
+      )}
+      {me?.user && ledger.ledger && (
+        <div className="border-b border-line bg-navy-900/60 px-4 py-2 font-mono text-[11px] text-muted">
+          Verified ledger: {ledger.ledger.entries} fills recorded by Kinfield · head {ledger.ledger.head.slice(0, 12)}
+        </div>
+      )}
+      {notice && (
+        <div className="flex items-center justify-between border-b border-short/30 bg-short/10 px-4 py-2 text-xs text-short">
+          {notice}
+          <button onClick={() => setNotice(null)} className="underline">
+            Dismiss
+          </button>
+        </div>
+      )}
       {error && (
         <div className="border-b border-short/30 bg-short/10 px-4 py-2 text-xs text-short">
           Market data issue: {error}. Retrying…
@@ -204,7 +238,10 @@ export function Terminal() {
               positions={state.positions}
               history={state.history}
               prices={prices}
-              onClose={(p) => prices[p.coin] && close(p.id, prices[p.coin])}
+              onClose={async (p) => {
+                if (!prices[p.coin]) return;
+                setNotice(await ledger.close(p, prices[p.coin]));
+              }}
             />
           </div>
         </div>
@@ -215,8 +252,10 @@ export function Terminal() {
             price={market?.mid}
             freeMargin={freeMargin}
             maxLeverage={Math.min(market?.maxLeverage ?? 20, 20)}
-            ready={!!market}
-            onSubmit={(o) => market && open({ ...o, coin, entryPx: market.mid, entryFeatures: features })}
+            ready={!!market && ready}
+            onSubmit={async (o) =>
+              market ? ledger.open({ ...o, coin, entryPx: market.mid, entryFeatures: features }) : "No price yet"
+            }
           />
           <AgentPanel coin={coin} history={state.history} features={features} />
           <p className="px-1 text-[11px] leading-relaxed text-muted/80">

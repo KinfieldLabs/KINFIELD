@@ -8,7 +8,7 @@ interface Props {
   positions: Position[];
   history: ClosedTrade[];
   prices: Record<string, number>;
-  onClose: (p: Position) => void;
+  onClose: (p: Position) => void | Promise<void>;
 }
 
 const th = "px-3 py-2 text-left font-normal text-muted";
