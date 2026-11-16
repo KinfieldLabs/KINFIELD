@@ -12,7 +12,8 @@ interface Props {
   onPickPrice: (px: number) => void;
 }
 
-const ROWS = 11;
+/** Hyperliquid sends 20 levels a side; a shorter panel hides the levels furthest from the spread. */
+const ROWS = 20;
 const SIG_FIGS = [5, 4, 3, 2] as const;
 
 /** The price step a given number of significant figures produces at this price. */
@@ -109,7 +110,7 @@ function Book({
     <button
       key={`${side}${l.px}`}
       onClick={() => onPickPrice(l.px)}
-      className="relative grid h-[19px] w-full grid-cols-3 items-center px-2 text-[11px] hover:bg-navy-800"
+      className="relative grid h-[19px] w-full shrink-0 grid-cols-3 items-center px-2 text-[11px] hover:bg-navy-800"
       title="Use this price for a limit order"
     >
       <span

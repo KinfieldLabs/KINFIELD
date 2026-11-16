@@ -8,6 +8,7 @@ import {
   createSeriesMarkers,
   HistogramSeries,
   LineStyle,
+  TickMarkType,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
@@ -44,6 +45,28 @@ const toVol = (c: Candle) => ({
   color: c.c >= c.o ? "rgba(47,214,160,0.28)" : "rgba(255,107,125,0.28)",
 });
 
+/** Chart times are UTC; labels always carry the month (and the year where it changes). */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad = (n: number) => String(n).padStart(2, "0");
+function tickLabel(time: Time, type: TickMarkType): string {
+  const d = new Date((time as number) * 1000);
+  const month = MONTHS[d.getUTCMonth()];
+  switch (type) {
+    case TickMarkType.Year:
+      return String(d.getUTCFullYear());
+    case TickMarkType.Month:
+      return `${month} ${d.getUTCFullYear()}`;
+    case TickMarkType.DayOfMonth:
+      return `${d.getUTCDate()} ${month}`;
+    default:
+      return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  }
+}
+const crosshairTime = (time: Time) => {
+  const d = new Date((time as number) * 1000);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}  ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+};
+
 /** Candles loaded when a market or interval opens; older ones load as you scroll back. */
 const INITIAL_BARS = 1500;
 const OLDER_CHUNK = 1500;
@@ -65,6 +88,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const older = useRef({ loading: false, done: false });
   const [depth, setDepth] = useState(0);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  /** False while the newest candle is scrolled out of view. */
+  const [atLatest, setAtLatest] = useState(true);
   const [legend, setLegend] = useState<Candle | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -92,7 +117,9 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         fixLeftEdge: true,
         // Zoom around the latest candle, not the cursor, so the future doesn't open up as a gap
         rightBarStaysOnScroll: true,
+        tickMarkFormatter: tickLabel,
       },
+      localization: { timeFormatter: crosshairTime },
       crosshair: {
         vertLine: { color: "rgba(63,200,240,0.4)", labelBackgroundColor: "#0c2f85" },
         horzLine: { color: "rgba(63,200,240,0.4)", labelBackgroundColor: "#0c2f85" },
@@ -141,7 +168,9 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
       }
     };
     c.timeScale().subscribeVisibleLogicalRangeChange((r) => {
-      if (r && r.from < 60) loadOlder();
+      if (!r) return;
+      if (r.from < 60) loadOlder();
+      setAtLatest(!bars.current.length || r.to >= bars.current.length - 2);
     });
     c.subscribeCrosshairMove((param) => {
       const d = param.time && candles.current ? param.seriesData.get(candles.current) : undefined;
@@ -213,6 +242,22 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     }
   });
 
+  /** Jumps straight to the newest candles, keeping the current zoom (no long scroll animation). */
+  const toLatest = () => {
+    const ts = chart.current?.timeScale();
+    const r = ts?.getVisibleLogicalRange();
+    const n = bars.current.length;
+    if (!ts || !n) return;
+    const span = r ? Math.max(20, r.to - r.from) : VIEW_BARS;
+    ts.setVisibleLogicalRange({ from: n - span + 6, to: n + 6 });
+  };
+
+  // While viewing history, the axis label would show the last candle in view as if it were the
+  // current price, so it's hidden until the chart is back at the present.
+  useEffect(() => {
+    candles.current?.applyOptions({ lastValueVisible: atLatest });
+  }, [atLatest]);
+
   // Levels: entries, liquidation, take profit, stop loss, resting orders
   useEffect(() => {
     const s = candles.current;
@@ -279,7 +324,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
           </button>
         ))}
         <button
-          onClick={() => chart.current?.timeScale().scrollToRealTime()}
+          onClick={toLatest}
           className="ml-auto rounded-md px-2 py-1 text-xs text-muted hover:text-cream"
           title="Jump to the latest candle"
         >
@@ -308,6 +353,14 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
             <span className={tone(chg)}>{fmtPct(chg)}</span>
             <span>Vol {fmtCompact(legend.v * legend.c)}</span>
           </div>
+        )}
+        {!atLatest && !loading && (
+          <button
+            onClick={toLatest}
+            className="absolute bottom-9 right-16 z-10 flex items-center gap-1.5 rounded-md border border-cyan/50 bg-navy-900/95 px-2.5 py-1 text-xs text-cyan shadow-lg shadow-black/40 hover:bg-navy-800"
+          >
+            Viewing history · Back to now ⇥
+          </button>
         )}
         {loadingOlder && (
           <div className="pointer-events-none absolute bottom-8 left-2 z-10 rounded-md border border-line bg-navy-900/90 px-2 py-1 font-mono text-[10px] text-muted">
