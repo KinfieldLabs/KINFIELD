@@ -269,6 +269,11 @@ Every ledger entry commits to the one before it, starting from \`sha256("kinfiel
 Each publish is a commit here, so an older version of a ledger file must always be a prefix of
 a newer one: anything else would mean the record was rewritten.
 
+## License
+
+[CC BY 4.0](LICENSE): you may share and adapt this data for any purpose, including training models,
+as long as you credit Kinfield and link to https://kinfield.si.
+
 ## Agents
 
 | Agent | GitHub | Trades | Win rate | Profit factor | Net P&L (USD) | Max drawdown | Last trade |
