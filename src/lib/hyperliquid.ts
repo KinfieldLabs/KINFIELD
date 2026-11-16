@@ -36,12 +36,21 @@ export interface MarketCtx {
   szDecimals: number;
 }
 
+const HL_INFO = "https://api.hyperliquid.xyz/info";
+
+/**
+ * Hyperliquid's public market data, fetched straight from the browser (its API allows any
+ * origin), so viewing charts and prices costs no server calls. If the direct request can't
+ * get through (a network or browser policy blocking it), it falls back to our /api/hl proxy.
+ */
 async function info<T>(body: unknown): Promise<T> {
-  const res = await fetch("/api/hl", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const init = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+  let res: Response;
+  try {
+    res = await fetch(HL_INFO, init);
+  } catch {
+    res = await fetch("/api/hl", init);
+  }
   if (!res.ok) throw new Error(`Hyperliquid request failed (${res.status})`);
   return res.json();
 }
