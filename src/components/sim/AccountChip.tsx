@@ -2,7 +2,15 @@
 
 import type { Me } from "@/lib/account";
 
-export function AccountChip({ me, onSignOut }: { me: Me | null; onSignOut: () => void }) {
+export function AccountChip({
+  me,
+  onSignOut,
+  onSharing,
+}: {
+  me: Me | null;
+  onSignOut: () => void;
+  onSharing: () => void;
+}) {
   if (!me) return <span className="h-7 w-24 animate-pulse rounded-full bg-navy-900" />;
   if (me.user)
     return (
@@ -16,6 +24,13 @@ export function AccountChip({ me, onSignOut }: { me: Me | null; onSignOut: () =>
           </span>
         )}
         <span className="hidden font-mono text-xs sm:inline">@{me.user.login}</span>
+        <button
+          onClick={onSharing}
+          className="whitespace-nowrap rounded-md border border-line px-2 py-1 text-xs text-mist hover:border-cyan/50 hover:text-cream"
+          title="Choose what you share in the open dataset"
+        >
+          {me.user.sharing.publishData ? "Sharing on" : "Sharing off"}
+        </button>
         <button onClick={onSignOut} className="whitespace-nowrap text-xs text-muted underline-offset-2 hover:text-cream hover:underline">
           Sign out
         </button>

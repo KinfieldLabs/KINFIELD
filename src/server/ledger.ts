@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type postgres from "postgres";
 import { computeFeatures } from "@/lib/features";
 import {
@@ -77,6 +77,14 @@ export const genesis = (accountId: string) => createHash("sha256").update(`kinfi
 export const chainHash = (prev: string, kind: string, payload: unknown) =>
   createHash("sha256").update(`${prev}\n${kind}\n${canonical(payload)}`).digest("hex");
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+/**
+ * Commitment to a trade's written reason: sha256(salt + "\n" + reason) with a random
+ * salt. A plain hash of a short reason could be guessed from common phrases; this one
+ * can't, and publishing the reason with its salt lets anyone check it.
+ */
+export const reasonCommitment = (salt: string, reason: string) => sha(`${salt}\n${reason}`);
+const newSalt = () => randomBytes(16).toString("hex");
 
 type Kind = "open" | "close" | "liquidate" | "order" | "cancel" | "tpsl";
 
@@ -339,9 +347,10 @@ async function fillOrder(tx: Tx, accountId: string, orderId: string, at: number,
   const openedAt = new Date(at);
   const [pos] = await tx`
     insert into positions (account_id, coin, side, size_usd, leverage, entry_px, opened_at, strategy, rationale,
-                           entry_features, entry_fee, tp_px, sl_px, order_id, liq_checked_at)
+                           rationale_salt, entry_features, entry_fee, tp_px, sl_px, order_id, liq_checked_at)
     values (${accountId}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${o.leverage}, ${o.limitPx}, ${openedAt}, ${o.strategy},
-            ${o.rationale}, ${r.features ? tx.json(r.features) : null}, ${fee}, ${o.tpPx}, ${o.slPx}, ${o.id},
+            ${o.rationale}, ${r.rationale_salt}, ${r.features ? tx.json(r.features) : null}, ${fee}, ${o.tpPx},
+            ${o.slPx}, ${o.id},
             ${new Date(checkedTo)})
     returning *`;
   await tx`update orders set status = 'filled', done_at = ${openedAt}, position_id = ${pos.id} where id = ${o.id}`;
@@ -465,14 +474,16 @@ export async function placeOrder(userId: string, o: OrderInput): Promise<{ posit
     const a = await lockAccount(tx, acct.id);
     const { free, openOrders } = await freeMargin(tx, acct.id, a.cash, live);
     const featuresJson = features ? tx.json(features as unknown as postgres.JSONValue) : null;
+    const salt = newSalt();
 
     if (resting != null) {
       if (openOrders >= MAX_OPEN_ORDERS) throw new LedgerError(`Up to ${MAX_OPEN_ORDERS} open orders`);
       if (reserved({ sizeUsd: o.sizeUsd, leverage: lev }) > free) throw new LedgerError("Not enough free margin");
       const [r] = await tx`
-        insert into orders (account_id, coin, side, size_usd, leverage, limit_px, tp_px, sl_px, strategy, rationale, features)
+        insert into orders (account_id, coin, side, size_usd, leverage, limit_px, tp_px, sl_px, strategy, rationale,
+                            rationale_salt, features)
         values (${acct.id}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${resting}, ${o.tpPx}, ${o.slPx}, ${o.strategy},
-                ${o.rationale}, ${featuresJson})
+                ${o.rationale}, ${salt}, ${featuresJson})
         returning *`;
       const order = toOrder(r);
       await append(tx, acct.id, "order", {
@@ -484,7 +495,7 @@ export async function placeOrder(userId: string, o: OrderInput): Promise<{ posit
         limit_px: order.limitPx,
         placed_at: new Date(order.placedAt).toISOString(),
         strategy: order.strategy,
-        rationale_sha256: sha(order.rationale),
+        rationale_commitment: reasonCommitment(salt, order.rationale),
         features,
         tp_px: order.tpPx ?? undefined,
         sl_px: order.slPx ?? undefined,
@@ -495,10 +506,10 @@ export async function placeOrder(userId: string, o: OrderInput): Promise<{ posit
     const fee = entryFee(o.sizeUsd);
     if (o.sizeUsd / lev + fee > free) throw new LedgerError("Not enough free margin");
     const [r] = await tx`
-      insert into positions (account_id, coin, side, size_usd, leverage, entry_px, strategy, rationale, entry_features,
-                             entry_fee, tp_px, sl_px)
-      values (${acct.id}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${px}, ${o.strategy}, ${o.rationale}, ${featuresJson},
-              ${fee}, ${o.tpPx}, ${o.slPx})
+      insert into positions (account_id, coin, side, size_usd, leverage, entry_px, strategy, rationale, rationale_salt,
+                             entry_features, entry_fee, tp_px, sl_px)
+      values (${acct.id}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${px}, ${o.strategy}, ${o.rationale}, ${salt},
+              ${featuresJson}, ${fee}, ${o.tpPx}, ${o.slPx})
       returning *`;
     await tx`update sim_accounts set cash = cash - ${fee} where id = ${acct.id}`;
     const p = toPosition(r);
@@ -511,7 +522,7 @@ export async function placeOrder(userId: string, o: OrderInput): Promise<{ posit
       entry_px: p.entryPx,
       opened_at: new Date(p.openedAt).toISOString(),
       strategy: p.strategy,
-      rationale_sha256: sha(p.rationale),
+      rationale_commitment: reasonCommitment(salt, p.rationale),
       features,
       tp_px: p.tpPx ?? undefined,
       sl_px: p.slPx ?? undefined,

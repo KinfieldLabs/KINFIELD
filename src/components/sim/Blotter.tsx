@@ -252,9 +252,9 @@ function Orders({ orders, prices, guest, onSelectCoin, onCancel }: Props) {
               <td className={td}>{fmtUsd(o.sizeUsd)}</td>
               <td className={`${td} text-muted`}>{px ? fmtPct(o.limitPx / px - 1) : "…"}</td>
               <td className={td}>
-                <span className={o.tpPx ? "text-long" : "text-muted"}>{o.tpPx ? fmtPxAt(o.tpPx, o.limitPx) : "–"}</span>
+                <span className={o.tpPx ? "text-long" : "text-muted"}>{o.tpPx ? fmtPxAt(o.tpPx, o.limitPx) : "None"}</span>
                 <span className="text-muted"> / </span>
-                <span className={o.slPx ? "text-short" : "text-muted"}>{o.slPx ? fmtPxAt(o.slPx, o.limitPx) : "–"}</span>
+                <span className={o.slPx ? "text-short" : "text-muted"}>{o.slPx ? fmtPxAt(o.slPx, o.limitPx) : "None"}</span>
               </td>
               <td className={`${td} text-right`}>
                 <button
@@ -311,7 +311,7 @@ function History({ history, markets, onSelectCoin }: Props) {
               <td className={`${td} text-muted`}>{fmtDuration(t.closedAt - t.openedAt)}</td>
               <td className={`${td} font-sans text-mist`}>{t.strategy}</td>
               <td className={`${td} max-w-[260px] truncate font-sans text-muted`} title={t.rationale}>
-                {t.rationale || "–"}
+                {t.rationale || "No reason given"}
               </td>
             </tr>
           );

@@ -10,6 +10,7 @@ import { useAllMids, useAssetCtx, useHlStatus } from "@/lib/hl-socket";
 import { fetchCandles, fetchMarkets, INTERVALS, type Candle, type Interval, type MarketCtx } from "@/lib/hyperliquid";
 import { limitCrossed, margin, reserved, triggerHit, unrealized } from "@/lib/sim";
 import { AccountChip } from "./AccountChip";
+import { SharingPrompt, SharingSettings } from "./DataSharing";
 import { Blotter } from "./Blotter";
 import { MarketBar } from "./MarketBar";
 import { OrderBook } from "./OrderBook";
@@ -36,7 +37,8 @@ function useRemembered<T extends string>(key: string, initial: T, valid: (v: str
 }
 
 export function Terminal() {
-  const { me, signOut } = useMe();
+  const { me, signOut, saveSharing } = useMe();
+  const [sharingOpen, setSharingOpen] = useState(false);
   const ledger = useLedger(!!me?.user);
   const { state, fire, poke } = ledger;
   const ready = !!me && ledger.ready;
@@ -137,7 +139,7 @@ export function Terminal() {
               className={tone(equity - ledger.startingBalance)}
             />
           </div>
-          <AccountChip me={me} onSignOut={signOut} />
+          <AccountChip me={me} onSignOut={signOut} onSharing={() => setSharingOpen(true)} />
         </div>
       </header>
 
@@ -148,6 +150,17 @@ export function Terminal() {
           Guest mode: trades stay in this browser, and limit orders are off.{" "}
           {me.signIn.available ? "Sign in to keep a verified track record your agent can be judged on." : ""}
         </div>
+      )}
+      {me?.user && !me.user.sharing.decided && (
+        <SharingPrompt sharing={me.user.sharing} onSave={saveSharing} onOptions={() => setSharingOpen(true)} />
+      )}
+      {sharingOpen && me?.user && (
+        <SharingSettings
+          sharing={me.user.sharing}
+          login={me.user.login}
+          onSave={saveSharing}
+          onClose={() => setSharingOpen(false)}
+        />
       )}
       {(notice || error) && (
         <div className="flex items-center justify-between gap-4 border-b border-short/30 bg-short/10 px-3 py-1.5 text-xs text-short">

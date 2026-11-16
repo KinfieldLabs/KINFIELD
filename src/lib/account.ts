@@ -14,8 +14,17 @@ import {
   type Strategy,
 } from "./sim";
 
+export interface Sharing {
+  agentId: string;
+  decided: boolean;
+  publishData: boolean;
+  showLogin: boolean;
+  publishRationale: boolean;
+  repo: string;
+}
+
 export interface Me {
-  user: { login: string; name: string | null; avatarUrl: string | null } | null;
+  user: { login: string; name: string | null; avatarUrl: string | null; sharing: Sharing } | null;
   signIn: { available: boolean; github: boolean; dev: boolean };
 }
 
@@ -32,7 +41,20 @@ export function useMe() {
     await fetch("/api/auth/logout", { method: "POST" });
     load();
   }, [load]);
-  return { me, signOut };
+  /** Saves data-sharing choices; resolves to an error message or null. */
+  const saveSharing = useCallback(
+    async (c: Partial<Pick<Sharing, "publishData" | "showLogin" | "publishRationale">>) => {
+      try {
+        await call("/api/me/sharing", { method: "POST", body: JSON.stringify(c) });
+        load();
+        return null;
+      } catch (e) {
+        return (e as Error).message;
+      }
+    },
+    [load],
+  );
+  return { me, signOut, saveSharing };
 }
 
 export interface OrderRequest {

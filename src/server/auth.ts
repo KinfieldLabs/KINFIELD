@@ -13,6 +13,10 @@ export interface User {
   avatarUrl: string | null;
   publishData: boolean;
   publishRationale: boolean;
+  agentId: string;
+  showLogin: boolean;
+  /** Whether the user has answered the data-sharing question yet. */
+  sharingDecided: boolean;
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -76,7 +80,29 @@ export async function currentUser(): Promise<User | null> {
     avatarUrl: u.avatar_url,
     publishData: u.publish_data,
     publishRationale: u.publish_rationale,
+    agentId: u.agent_id,
+    showLogin: u.show_login,
+    sharingDecided: !!u.publish_decided_at,
   };
+}
+
+export interface SharingChoice {
+  publishData?: boolean;
+  showLogin?: boolean;
+  publishRationale?: boolean;
+}
+
+/** Updates what this user shares in the open dataset. Choosing either way counts as deciding. */
+export async function setSharing(userId: string, c: SharingChoice) {
+  const sql = db();
+  await sql`
+    update users set
+      publish_data = coalesce(${c.publishData ?? null}::boolean, publish_data),
+      show_login = coalesce(${c.showLogin ?? null}::boolean, show_login),
+      publish_rationale = coalesce(${c.publishRationale ?? null}::boolean, publish_rationale),
+      publish_decided_at = case when ${c.publishData ?? null}::boolean is null then publish_decided_at
+                                else coalesce(publish_decided_at, now()) end
+    where id = ${userId}`;
 }
 
 /** Exchanges an OAuth code for the GitHub profile of the person who signed in. */

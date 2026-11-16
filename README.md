@@ -48,6 +48,26 @@ before deploying the code that needs them; the live release keeps working in bet
 - Every fill is appended to a hash-chained `ledger` table, so a published dataset can be
   checked against Kinfield's record. Reset archives an account; it never deletes history.
 
+## Open dataset
+
+Users who choose to share (asked once after sign-in; nothing is published before that) are
+published nightly to [KinfieldLabs/kinfield-datasets](https://github.com/KinfieldLabs/kinfield-datasets)
+under a pseudonymous agent id:
+
+- `agents/<agent>/trades.jsonl`: closed trades (context, action, intent, outcome)
+- `agents/<agent>/ledger/<account>.jsonl`: the hash chain every trade is checked against
+- `agents/<agent>/summary.json`: stats per account and ledger heads
+- `verify.mjs` ([source](dataset/verify.mjs)): recomputes every chain and checks every trade
+
+Written reasons stay private unless the user shares them: the ledger records a salted commitment,
+and sharing a reason publishes its salt so it can be checked. Turning sharing off removes the
+agent's folder at the next publish.
+
+The job is `/api/cron/publish` (scheduled in `vercel.json`, authorised by `CRON_SECRET`). It writes
+through a GitHub App (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`) installed only on the dataset
+repository, and sends only agents whose files changed. Locally, `?dry=1` writes the dataset to
+`DATASET_OUT_DIR` instead.
+
 ## Layout
 
 - `src/lib/hyperliquid.ts` market data client
@@ -56,6 +76,9 @@ before deploying the code that needs them; the live release keeps working in bet
 - `src/lib/account.ts` sign-in state and the server-backed ledger hook
 - `src/server/*` database, GitHub OAuth, ledger, server-side market data
 - `src/app/api/auth/*`, `src/app/api/sim/*` account and trading API
+- `src/server/dataset.ts`, `publish.ts`, `github-app.ts` the open dataset and its publisher
+- `src/lib/stats.ts` track-record statistics
+- `dataset/verify.mjs` the verifier shipped with the dataset
 - `db/` SQL migrations, migrate and verify scripts
 - `src/lib/features.ts` market features captured at entry
 - `src/lib/agent.ts` apprentice agent
