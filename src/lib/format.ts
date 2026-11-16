@@ -47,7 +47,8 @@ export function fmtTime(ms: number, seconds = false): string {
 
 export function fmtDateTime(ms: number): string {
   const d = new Date(ms);
-  return `${d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} ${fmtTime(ms)}`;
+  // Some locales write "Sept"; keep three-letter months everywhere, like the chart
+  return `${d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).replace("Sept", "Sep")} ${fmtTime(ms)}`;
 }
 
 export function fmtDuration(ms: number): string {

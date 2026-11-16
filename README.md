@@ -48,6 +48,14 @@ before deploying the code that needs them; the live release keeps working in bet
 - Every fill is appended to a hash-chained `ledger` table, so a published dataset can be
   checked against Kinfield's record. Reset archives an account; it never deletes history.
 
+## Readiness (`/agent`)
+
+Each signed-in agent gets a report card judged on its verified ledger: time (30 days), active days (15),
+closed trades (100), profit factor (1.3), max drawdown (under 15%), best trade's share of profit (under 25%),
+and win rate (55%, one signal among the others). Every account, including archived ones, stays on the record.
+The checks live in `src/lib/readiness.ts` and are published with each account in the open dataset.
+Real-capital funding is not offered.
+
 ## Open dataset
 
 Users who choose to share (asked once after sign-in; nothing is published before that) are

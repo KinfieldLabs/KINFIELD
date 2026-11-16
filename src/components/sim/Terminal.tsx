@@ -8,7 +8,9 @@ import { computeFeatures } from "@/lib/features";
 import { fmtPct, fmtUsd, tone } from "@/lib/format";
 import { useAllMids, useAssetCtx, useHlStatus } from "@/lib/hl-socket";
 import { fetchCandles, fetchMarkets, INTERVALS, type Candle, type Interval, type MarketCtx } from "@/lib/hyperliquid";
+import { readiness } from "@/lib/readiness";
 import { limitCrossed, margin, reserved, triggerHit, unrealized } from "@/lib/sim";
+import { trackStats } from "@/lib/stats";
 import { AccountChip } from "./AccountChip";
 import { SharingPrompt, SharingSettings } from "./DataSharing";
 import { Blotter } from "./Blotter";
@@ -125,11 +127,17 @@ export function Terminal() {
 
   return (
     <div className="flex min-h-screen flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden">
-      <header className="flex items-center gap-x-5 gap-y-2 border-b border-line px-3 py-2">
+      <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line px-3 py-2">
         <Logo />
         <span className="rounded-full border border-cyan/40 bg-cyan/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan">
           Simulation
         </span>
+        <nav className="hidden items-center gap-1 text-sm md:flex">
+          <span className="rounded-md bg-navy-800 px-2.5 py-1 text-cream">Terminal</span>
+          <Link href="/agent" className="rounded-md px-2.5 py-1 text-muted hover:text-cream">
+            Your agent
+          </Link>
+        </nav>
         <div className="ml-auto flex items-center gap-x-5">
           <div className="hidden items-center gap-x-5 text-xs sm:flex">
             <HeaderStat label="Equity" value={fmtUsd(equity)} />
@@ -300,6 +308,7 @@ function AccountSummary({
           </div>
         ))}
       </dl>
+      {ledger.mode === "account" && ledger.accountCreatedAt && <ReadinessLink ledger={ledger} />}
       {ledger.ledger && (
         <p className="mt-3 rounded-lg border border-line bg-navy-950/40 px-2 py-1.5 font-mono text-[10px] leading-relaxed text-muted">
           Verified ledger: {ledger.ledger.entries} entries recorded by Kinfield
@@ -308,5 +317,33 @@ function AccountSummary({
         </p>
       )}
     </div>
+  );
+}
+
+/** How the current account stands against the readiness checks, linking to the full report. */
+function ReadinessLink({ ledger }: { ledger: Ledger }) {
+  const history = ledger.state.history;
+  const r = useMemo(
+    () =>
+      readiness(
+        trackStats(history.map((t) => ({ pnl: t.pnl, openedAt: t.openedAt, closedAt: t.closedAt })), ledger.startingBalance),
+        ledger.accountCreatedAt ?? Date.now(),
+      ),
+    [history, ledger.startingBalance, ledger.accountCreatedAt],
+  );
+  return (
+    <Link href="/agent" className="group mt-3 block rounded-lg border border-line p-2 hover:border-cyan/50">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="text-mist">Readiness</span>
+        <span className="text-muted group-hover:text-cyan">
+          <span className="num text-cream">{r.passed}</span> of {r.total} checks · View
+        </span>
+      </div>
+      <div className="mt-1.5 flex gap-0.5" aria-hidden>
+        {r.checks.map((c) => (
+          <span key={c.id} className={`h-1 flex-1 rounded-full ${c.pass ? "bg-long" : "bg-cyan/15"}`} />
+        ))}
+      </div>
+    </Link>
   );
 }

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type postgres from "postgres";
+import { READINESS, readiness } from "@/lib/readiness";
 import { trackStats, type TrackStats } from "@/lib/stats";
 import { STARTING_BALANCE } from "@/lib/sim-core";
 import { db } from "./db";
@@ -133,6 +134,13 @@ async function buildAgent(sql: postgres.Sql, u: Row): Promise<AgentBuild | null>
       `${base}/${file}`,
       jsonl(ledger.map((e) => ({ kind: e.kind, payload: e.payload, prev_hash: e.prev_hash, hash: e.hash, recorded_at: iso(e.created_at) }))),
     );
+    const accountStats = trackStats(
+      closed.map((t) => ({ pnl: t.pnl, openedAt: ms(t.opened_at), closedAt: ms(t.closed_at) })),
+      a.starting_balance,
+    );
+    // As of the account's last ledger entry (or when it was archived), so files only change with the record
+    const asOf = a.archived_at ? ms(a.archived_at) : ms(ledger[ledger.length - 1].created_at);
+    const r = readiness(accountStats, ms(a.created_at), asOf);
     summaries.push({
       account_id: a.id,
       status: a.archived_at ? "archived" : "active",
@@ -140,12 +148,14 @@ async function buildAgent(sql: postgres.Sql, u: Row): Promise<AgentBuild | null>
       archived_at: iso(a.archived_at),
       starting_balance: a.starting_balance,
       ledger: { file, entries: ledger.length, head: ledger[ledger.length - 1].hash },
-      stats: publicStats(
-        trackStats(
-          closed.map((t) => ({ pnl: t.pnl, openedAt: ms(t.opened_at), closedAt: ms(t.closed_at) })),
-          a.starting_balance,
-        ),
-      ),
+      stats: publicStats(accountStats),
+      readiness: {
+        as_of: new Date(asOf).toISOString(),
+        checks_met: r.passed,
+        checks_total: r.total,
+        meets_all: r.ready,
+        checks: Object.fromEntries(r.checks.map((c) => [c.id, { met: c.pass, value: c.value, needs: c.target }])),
+      },
     });
   }
   if (!summaries.length) return null;
@@ -258,6 +268,25 @@ the owner chose to share their reasons.
 Fills are made by Kinfield's server from Hyperliquid prices, never by the trader's browser. Limit
 orders, take profit, stop loss and liquidation are replayed against real price history; when one
 bar touches both a protective level and the take profit, the worse outcome is recorded.
+
+## Readiness checks
+
+Each account in \`summary.json\` carries a \`readiness\` block: how its record stands against the checks an
+agent would have to meet before it could be considered for real capital. They are computed from the same
+trades published here, as of the account's last ledger entry:
+
+| Check | Needs |
+|---|---|
+| Time | ${READINESS.minDays} days since the account opened |
+| Active days | ${READINESS.minActiveDays} days with a closed trade |
+| Closed trades | ${READINESS.minTrades} |
+| Profit factor | at least ${READINESS.minProfitFactor} (gross profit ÷ gross loss) |
+| Max drawdown | under ${READINESS.maxDrawdown * 100}% of peak closed-trade equity |
+| Best trade share | under ${READINESS.maxBestTradeShare * 100}% of total profit |
+| Win rate | at least ${READINESS.minWinRate * 100}% |
+
+Win rate is one signal among the others, never enough on its own. No funding is offered on the basis of these
+checks today.
 
 ## Verify
 

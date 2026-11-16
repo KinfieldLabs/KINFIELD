@@ -83,6 +83,8 @@ export interface Ledger {
   startingBalance: number;
   ready: boolean;
   ledger?: { entries: number; head: string };
+  /** When the current signed-in account was opened (its evaluation started). */
+  accountCreatedAt?: number;
   /** Resolves to what happened to the order, or an error message. */
   open: (o: OrderRequest) => Promise<OpenResult>;
   /** The other actions resolve to an error message, or null on success. */
@@ -104,6 +106,7 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 interface ServerState {
+  createdAt: number;
   startingBalance: number;
   cash: number;
   positions: Position[];
@@ -164,6 +167,7 @@ function useAccountLedger(enabled: boolean): Ledger {
     state: s ?? { cash: STARTING_BALANCE, positions: [], orders: [], history: [] },
     startingBalance: s?.startingBalance ?? STARTING_BALANCE,
     ledger: s?.ledger,
+    accountCreatedAt: s?.createdAt,
     open: async (o) => {
       let res: { position?: Position; order?: Order } = {};
       const error = await act(async () => {
