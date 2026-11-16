@@ -75,7 +75,18 @@ export interface OrderRequest {
 
 export type AccountView = SimState & { orders: Order[] };
 
-export type OpenResult = { ok: true; filled: boolean } | { ok: false; error: string };
+export type OpenResult =
+  | {
+      ok: true;
+      filled: boolean;
+      /** The price it filled at (market orders). */
+      px?: number;
+      /** Click to confirmed fill, as measured in this browser. */
+      roundTripMs?: number;
+      /** Time spent on the server, including fetching the fill price. */
+      serverMs?: number;
+    }
+  | { ok: false; error: string };
 
 export interface Ledger {
   mode: "guest" | "account";
@@ -115,15 +126,44 @@ interface ServerState {
   ledger: { entries: number; head: string };
 }
 
-/** Signed-in: every fill goes through the server ledger. */
+interface PlaceResponse {
+  position?: Position;
+  order?: Order;
+  cash: number;
+  fill: { px: number; at: number };
+  timing: { priceMs: number; serverMs: number };
+}
+
+interface CloseResponse {
+  trade: ClosedTrade;
+  cash: number;
+  triggered: boolean;
+  timing: { priceMs: number; serverMs: number };
+}
+
+const REASON_TEXT: Record<string, string> = {
+  stop_loss: "its stop loss",
+  take_profit: "its take profit",
+  liquidation: "its liquidation price",
+};
+
+/**
+ * Signed-in: every fill goes through the server ledger. Each action's response carries the
+ * new position and cash, so the view updates the moment it arrives, without a second request.
+ */
 function useAccountLedger(enabled: boolean): Ledger {
   const [s, setS] = useState<ServerState | null>(null);
-  const busy = useRef(false);
+  /** Bumped whenever an action's result is applied; older refreshes are then ignored. */
+  const version = useRef(0);
+  const pending = useRef(0);
   const lastPoke = useRef(0);
 
   const refresh = useCallback(async () => {
+    const v = version.current;
     try {
-      setS(await call<ServerState>("/api/sim/state"));
+      const st = await call<ServerState>("/api/sim/state");
+      // A refresh that started before a newer action finished would briefly undo it
+      if (v === version.current) setS(st);
     } catch {}
   }, []);
 
@@ -135,31 +175,33 @@ function useAccountLedger(enabled: boolean): Ledger {
     return () => clearInterval(id);
   }, [enabled, refresh]);
 
+  /** Runs an action and applies its result straight away. On an error, re-reads the account. */
   const act = useCallback(
-    async (fn: () => Promise<unknown>) => {
-      if (busy.current) return "Still working on the last request";
-      busy.current = true;
+    async <R,>(fn: () => Promise<R>, apply: (r: R, cur: ServerState) => ServerState) => {
+      pending.current++;
       try {
-        await fn();
-        return null;
+        const r = await fn();
+        version.current++;
+        setS((cur) => (cur ? apply(r, cur) : cur));
+        return { ok: true as const, r };
       } catch (e) {
-        return (e as Error).message;
+        void refresh();
+        return { ok: false as const, error: (e as Error).message };
       } finally {
-        busy.current = false;
-        await refresh();
+        pending.current--;
       }
     },
     [refresh],
   );
 
   const poke = useCallback(() => {
-    if (busy.current || Date.now() - lastPoke.current < 3000) return;
+    if (pending.current || Date.now() - lastPoke.current < 3000) return;
     lastPoke.current = Date.now();
     refresh();
   }, [refresh]);
 
-  const post = (url: string, body?: unknown) =>
-    act(() => call(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }));
+  const post = <R,>(url: string, body?: unknown) => () =>
+    call<R>(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
   return {
     mode: "account",
@@ -169,33 +211,69 @@ function useAccountLedger(enabled: boolean): Ledger {
     ledger: s?.ledger,
     accountCreatedAt: s?.createdAt,
     open: async (o) => {
-      let res: { position?: Position; order?: Order } = {};
-      const error = await act(async () => {
-        res = await call("/api/sim/orders", {
-          method: "POST",
-          body: JSON.stringify({
-        coin: o.coin,
-        side: o.side,
-        type: o.type,
-        limitPx: o.limitPx,
-        sizeUsd: o.sizeUsd,
-        leverage: o.leverage,
-        tpPx: o.tpPx,
-        slPx: o.slPx,
-            strategy: o.strategy,
-            rationale: o.rationale,
-          }),
-        });
-      });
-      return error ? { ok: false, error } : { ok: true, filled: !!res.position };
+      const clicked = performance.now();
+      const res = await act(
+        post<PlaceResponse>("/api/sim/orders", {
+          coin: o.coin,
+          side: o.side,
+          type: o.type,
+          limitPx: o.limitPx,
+          sizeUsd: o.sizeUsd,
+          leverage: o.leverage,
+          tpPx: o.tpPx,
+          slPx: o.slPx,
+          strategy: o.strategy,
+          rationale: o.rationale,
+        }),
+        (r, cur) => ({
+          ...cur,
+          cash: r.cash,
+          positions: r.position ? [r.position, ...cur.positions] : cur.positions,
+          orders: r.order ? [r.order, ...cur.orders] : cur.orders,
+        }),
+      );
+      if (!res.ok) return res;
+      return {
+        ok: true,
+        filled: !!res.r.position,
+        px: res.r.position ? res.r.fill.px : undefined,
+        roundTripMs: Math.round(performance.now() - clicked),
+        serverMs: res.r.timing.serverMs,
+      };
     },
-    close: (p) => post(`/api/sim/positions/${p.id}/close`),
-    cancel: (o) => post(`/api/sim/orders/${o.id}/cancel`),
-    setTpSl: (p, tpPx, slPx) => post(`/api/sim/positions/${p.id}/tpsl`, { tpPx, slPx }),
+    close: async (p) => {
+      const res = await act(post<CloseResponse>(`/api/sim/positions/${p.id}/close`, { coin: p.coin }), (r, cur) => ({
+        ...cur,
+        cash: r.cash,
+        positions: cur.positions.filter((x) => x.id !== r.trade.id),
+        history: [r.trade, ...cur.history],
+      }));
+      if (!res.ok) return res.error;
+      const t = res.r.trade;
+      return res.r.triggered && t.exitReason && REASON_TEXT[t.exitReason]
+        ? `${t.coin} had already reached ${REASON_TEXT[t.exitReason]} before you closed it, so it closed there.`
+        : null;
+    },
+    cancel: async (o) => {
+      const res = await act(post<{ order: Order }>(`/api/sim/orders/${o.id}/cancel`), (r, cur) => ({
+        ...cur,
+        orders: cur.orders.filter((x) => x.id !== r.order.id),
+      }));
+      return res.ok ? null : res.error;
+    },
+    setTpSl: async (p, tpPx, slPx) => {
+      const res = await act(post<{ position: Position }>(`/api/sim/positions/${p.id}/tpsl`, { tpPx, slPx }), (r, cur) => ({
+        ...cur,
+        positions: cur.positions.map((x) => (x.id === r.position.id ? r.position : x)),
+      }));
+      return res.ok ? null : res.error;
+    },
     fire: () => poke(),
     poke,
     reset: async () => {
-      await post("/api/sim/reset");
+      await call("/api/sim/reset", { method: "POST" }).catch(() => {});
+      version.current++;
+      await refresh();
     },
   };
 }
@@ -224,7 +302,7 @@ function useGuestLedger(): Ledger {
         tpPx: o.tpPx,
         slPx: o.slPx,
       });
-      return { ok: true, filled: true };
+      return { ok: true, filled: true, px: o.entryPx, roundTripMs: 0 };
     },
     close: async (p, px) => {
       sim.close(p.id, px);

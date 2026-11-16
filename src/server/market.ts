@@ -14,11 +14,27 @@ async function info<T>(body: unknown): Promise<T> {
   return res.json();
 }
 
+/**
+ * The price a market order fills at: Hyperliquid's mid (halfway between the best bid and
+ * ask) for that one market, fetched fresh the moment the order arrives and never cached,
+ * so a fill can't use a stale price. `at` is Hyperliquid's own timestamp for the book.
+ */
+export async function fillPrice(coin: string): Promise<{ px: number; at: number }> {
+  const book = await info<{ time: number; levels: { px: string }[][] } | null>({ type: "l2Book", coin });
+  const bid = Number(book?.levels?.[0]?.[0]?.px);
+  const ask = Number(book?.levels?.[1]?.[0]?.px);
+  if (!book || !(bid > 0) || !(ask > 0)) throw new Error(`no price for ${coin}`);
+  return { px: (bid + ask) / 2, at: book.time || Date.now() };
+}
+
 let midsCache: { at: number; mids: Record<string, number> } | null = null;
 
-/** Current mid price for every perp. Cached for one second. */
-export async function mids(): Promise<Record<string, number>> {
-  if (midsCache && Date.now() - midsCache.at < 1000) return midsCache.mids;
+/**
+ * Current mid price for every perp, for valuations and trigger checks (never for fills).
+ * Cached; `maxAgeMs` says how old a cached copy may be.
+ */
+export async function mids(maxAgeMs = 1000): Promise<Record<string, number>> {
+  if (midsCache && Date.now() - midsCache.at < maxAgeMs) return midsCache.mids;
   const raw = await info<Record<string, string>>({ type: "allMids" });
   const m: Record<string, number> = {};
   for (const [k, v] of Object.entries(raw)) if (!k.startsWith("@")) m[k] = Number(v);
@@ -57,29 +73,36 @@ export interface Bar {
 
 const MIN = 60_000;
 const RECENT_MS = 3 * 24 * 60 * MIN; // Hyperliquid serves the latest 5000 bars per interval (~3.5 days of 1m)
-const recent = new Map<string, { at: number; bars: Candle[] }>();
-const inflight = new Map<string, Promise<Candle[]>>();
+const bars1m = new Map<string, { from: number; at: number; bars: Candle[] }>();
+const inflight = new Map<string, Promise<void>>();
 
 /**
- * The last three days of 1-minute bars for a coin, shared by every account on this
- * server and topped up incrementally, so frequent checks cost one small request.
+ * 1-minute bars for a coin from `from` to now, shared by every request on this server.
+ * Only what isn't cached is fetched: usually a bar or two, never the whole history.
  */
-export function recentMinuteBars(coin: string): Promise<Candle[]> {
-  const hit = recent.get(coin);
-  const now = Date.now();
-  if (hit && now - hit.at < 10_000) return Promise.resolve(hit.bars);
-  const running = inflight.get(coin);
-  if (running) return running;
-  const job = (async () => {
-    const from = hit?.bars.length ? hit.bars[hit.bars.length - 1].t : now - RECENT_MS;
-    const fresh = await candles(coin, "1m", from, now);
-    const kept = (hit?.bars ?? []).filter((b) => b.t < from && b.t >= now - RECENT_MS);
-    const bars = [...kept, ...fresh];
-    recent.set(coin, { at: Date.now(), bars });
-    return bars;
-  })().finally(() => inflight.delete(coin));
-  inflight.set(coin, job);
-  return job;
+export async function minuteBars(coin: string, from: number, maxAgeMs = 5_000): Promise<Candle[]> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const now = Date.now();
+    const hit = bars1m.get(coin);
+    const covers = !!hit && hit.from <= from;
+    if (covers && now - hit.at < maxAgeMs) return hit.bars;
+    const running = inflight.get(coin);
+    if (running) {
+      await running.catch(() => {});
+      continue;
+    }
+    const job = (async () => {
+      // Top up from the newest cached bar when the cache reaches back far enough
+      const start = covers ? (hit.bars.at(-1)?.t ?? from) : Math.max(from, now - RECENT_MS);
+      const fresh = await candles(coin, "1m", start, now);
+      const kept = covers ? hit.bars.filter((b) => b.t < start) : [];
+      const bars = [...kept, ...fresh].filter((b) => b.t >= now - RECENT_MS);
+      bars1m.set(coin, { from: covers ? hit.from : start, at: Date.now(), bars });
+    })().finally(() => inflight.delete(coin));
+    inflight.set(coin, job);
+    await job;
+  }
+  return bars1m.get(coin)?.bars ?? [];
 }
 
 /**
@@ -90,7 +113,7 @@ export function recentMinuteBars(coin: string): Promise<Candle[]> {
 export async function closedBarsSince(coin: string, from: number): Promise<Bar[]> {
   const now = Date.now();
   const toBar = (ms: number) => (c: Candle) => ({ t: c.t, ms, l: c.l, h: c.h });
-  const all = await recentMinuteBars(coin);
+  const all = await minuteBars(coin, Math.max(from, now - RECENT_MS));
   const minute = all.filter((b) => b.t >= from && b.t + MIN <= now).map(toBar(MIN));
   const coverStart = all.length ? all[0].t : now;
   if (from >= coverStart - MIN) return minute; // the 1-minute cache already covers the window

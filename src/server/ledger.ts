@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type postgres from "postgres";
 import { computeFeatures } from "@/lib/features";
 import {
@@ -6,7 +6,6 @@ import {
   closeOutcome,
   entryFee,
   MAKER_FEE,
-  margin,
   reserved,
   STARTING_BALANCE,
   STRATEGIES,
@@ -21,7 +20,7 @@ import {
   triggerHit,
 } from "@/lib/sim-core";
 import { db } from "./db";
-import { closedBarsSince, maxLeverage, mids, recentMinuteBars, type Bar } from "./market";
+import { closedBarsSince, fillPrice, maxLeverage, mids, minuteBars, type Bar } from "./market";
 
 /**
  * The server-side simulated ledger. The browser only sends intentions (side, size,
@@ -199,16 +198,6 @@ export async function getState(userId: string): Promise<AccountState> {
   };
 }
 
-/** Free margin: equity minus margin in use and margin held for resting orders. */
-async function freeMargin(tx: Tx, accountId: string, cash: number, live: Record<string, number>) {
-  const open = (await tx`select * from positions where account_id = ${accountId} and closed_at is null`).map(toPosition);
-  const resting = (await tx`select * from orders where account_id = ${accountId} and status = 'open'`).map(toOrder);
-  const upnl = open.reduce((s, p) => s + (live[p.coin] ? unrealized(p, live[p.coin]) : 0), 0);
-  const used = open.reduce((s, p) => s + margin(p), 0);
-  const held = resting.reduce((s, o) => s + reserved(o), 0);
-  return { free: cash + upnl - used - held, openOrders: resting.length };
-}
-
 // ---------- triggers: limit fills, take profit, stop loss, liquidation ----------
 
 interface Exit {
@@ -327,11 +316,21 @@ export async function sweep(accountId: string, force = false) {
     fills.push({ order: o, at, checkFrom, exit, checkedTo: endOf(o.coin, checkFrom) });
   }
 
-  for (const c of checked) {
-    const at = new Date(c.at);
-    if (c.table === "positions") await sql`update positions set liq_checked_at = ${at} where id = ${c.id} and closed_at is null`;
-    else await sql`update orders set checked_at = ${at} where id = ${c.id} and status = 'open'`;
-  }
+  // All checkpoints in at most two statements
+  const marks = (table: "positions" | "orders") =>
+    checked.filter((c) => c.table === table).map((c) => ({ id: c.id, at: new Date(c.at).toISOString() }));
+  const posMarks = marks("positions");
+  const orderMarks = marks("orders");
+  await Promise.all([
+    posMarks.length &&
+      sql`update positions p set liq_checked_at = u.at
+          from jsonb_to_recordset(${sql.json(posMarks)}::jsonb) as u(id uuid, at timestamptz)
+          where p.id = u.id and p.closed_at is null`,
+    orderMarks.length &&
+      sql`update orders o set checked_at = u.at
+          from jsonb_to_recordset(${sql.json(orderMarks)}::jsonb) as u(id uuid, at timestamptz)
+          where o.id = u.id and o.status = 'open'`,
+  ]);
   if (!exits.length && !fills.length) return;
 
   await sql.begin(async (tx) => {
@@ -379,26 +378,54 @@ async function fillOrder(tx: Tx, accountId: string, orderId: string, at: number,
   return pos.id as string;
 }
 
-async function settle(tx: Tx, accountId: string, positionId: string, px: number, at: number, reason: ExitReason) {
-  const [r] = await tx`select * from positions where id = ${positionId} and account_id = ${accountId} and closed_at is null for update`;
-  if (!r) return null;
+/**
+ * Closes a position: updates it, credits the cash and appends the ledger entry in one
+ * statement. `prev` is the account's current ledger head (the account must be locked).
+ */
+async function writeClose(tx: Tx, accountId: string, r: Row, exit: Exit, prev: string) {
   const p = toPosition(r);
-  const liquidated = reason === "liquidation";
-  const { fees, pnl, cashDelta } = closeOutcome(p, px, liquidated);
-  const closedAt = new Date(at);
-  await tx`update positions set exit_px = ${px}, closed_at = ${closedAt}, pnl = ${pnl}, fees = ${fees},
-           liquidated = ${liquidated}, exit_reason = ${reason} where id = ${positionId}`;
-  await tx`update sim_accounts set cash = cash + ${cashDelta} where id = ${accountId}`;
-  await append(tx, accountId, liquidated ? "liquidate" : "close", {
+  const liquidated = exit.reason === "liquidation";
+  const { fees, pnl, cashDelta } = closeOutcome(p, exit.px, liquidated);
+  const closedAt = new Date(exit.at);
+  const kind: Kind = liquidated ? "liquidate" : "close";
+  const payload = {
     position_id: p.id,
     coin: p.coin,
-    exit_px: px,
+    exit_px: exit.px,
     closed_at: closedAt.toISOString(),
     pnl,
     fees,
-    reason: liquidated ? undefined : reason,
-  });
-  return { ...p, exitPx: px, closedAt: at, pnl, fees, liquidated, exitReason: reason } satisfies ClosedTrade;
+    reason: liquidated ? undefined : exit.reason,
+  };
+  const hash = chainHash(prev, kind, payload);
+  const [w] = await tx`
+    with pos as (
+      update positions set exit_px = ${exit.px}, closed_at = ${closedAt}, pnl = ${pnl}, fees = ${fees},
+                           liquidated = ${liquidated}, exit_reason = ${exit.reason}
+      where id = ${p.id} and closed_at is null
+      returning id),
+    acct as (
+      update sim_accounts set cash = cash + ${cashDelta}
+      where id = ${accountId} and exists (select 1 from pos)
+      returning cash),
+    led as (
+      insert into ledger (account_id, kind, payload, prev_hash, hash)
+      select ${accountId}::uuid, ${kind}::text, ${tx.json(payload as postgres.JSONValue)}::jsonb, ${prev}::text, ${hash}::text
+      from pos
+      returning 1)
+    select (select cash from acct) as cash, (select count(*) from pos)::int as n`;
+  if (!w?.n) return null;
+  const trade: ClosedTrade = { ...p, exitPx: exit.px, closedAt: exit.at, pnl, fees, liquidated, exitReason: exit.reason };
+  return { trade, cash: w.cash as number, head: hash };
+}
+
+const headOf = (tx: Tx, accountId: string) =>
+  tx`select hash from ledger where account_id = ${accountId} order by seq desc limit 1`.then(([h]) => h?.hash ?? genesis(accountId));
+
+async function settle(tx: Tx, accountId: string, positionId: string, px: number, at: number, reason: ExitReason) {
+  const [r] = await tx`select * from positions where id = ${positionId} and account_id = ${accountId} and closed_at is null`;
+  if (!r) return null;
+  return (await writeClose(tx, accountId, r, { px, at, reason }, await headOf(tx, accountId)))?.trade ?? null;
 }
 
 // ---------- orders ----------
@@ -454,91 +481,156 @@ export function parseOrder(body: unknown): OrderInput {
   };
 }
 
+export interface PlaceResult {
+  position?: Position;
+  order?: Order;
+  /** Account cash after the order (fees taken). */
+  cash: number;
+  /** The market price the order met and Hyperliquid's time for it. */
+  fill: { px: number; at: number };
+  timing: { priceMs: number };
+}
+
+/**
+ * Places an order. Speed matters here: the fill price is fetched for this one market the
+ * moment the order arrives, while the account is looked up, locked and read in parallel, and
+ * the position, cash and ledger entry are then written in a single statement. The order fills
+ * at the market price when it reached us, not at the end of the processing.
+ */
 export async function placeOrder(
   userId: string,
   o: OrderInput,
-  opts: { kind?: AccountKind; agentP?: number } = {},
-): Promise<{ position?: Position; order?: Order }> {
-  const acct = await activeAccount(userId, opts.kind ?? "human");
-  await sweep(acct.id, true);
+  opts: { kind?: AccountKind; agentP?: number; accountId?: string } = {},
+): Promise<PlaceResult> {
+  const started = performance.now();
+  const priceP = fillPrice(o.coin).then((r) => ({ ...r, ms: performance.now() - started }));
+  // Leverage limits and recent candles (for the market context stored with the trade) can be a
+  // little old; other markets' prices are only needed to value other open positions
+  const marketP = Promise.all([maxLeverage(), minuteBars(o.coin, Date.now() - 95 * 60_000, 60_000).catch(() => [])]);
+  const midsP = mids(30_000);
+  priceP.catch(() => {});
+  marketP.catch(() => {});
+  midsP.catch(() => {});
 
-  const [live, maxLev, minuteBars] = await Promise.all([
-    mids(),
-    maxLeverage(),
-    recentMinuteBars(o.coin).catch(() => []),
-  ]);
-  const px = live[o.coin];
-  if (!px || !(o.coin in maxLev)) throw new LedgerError("unknown market");
-  const lev = Math.min(o.leverage, maxLev[o.coin], MAX_LEVERAGE);
-  const features = computeFeatures(minuteBars.slice(-90), px);
-
-  // A limit that is already through the market fills now, like on a real exchange
-  const resting =
-    o.type === "limit" && o.limitPx != null && (o.side === "long" ? o.limitPx < px : o.limitPx > px) ? o.limitPx : null;
-  if (resting != null && Math.abs(resting / px - 1) > MAX_LIMIT_DISTANCE)
-    throw new LedgerError("Limit price is too far from the market");
-  const tpslError = checkTpSl(o.side, resting ?? px, o.tpPx, o.slPx, resting != null ? "limit price" : "entry price");
-  if (tpslError) throw new LedgerError(tpslError);
+  const accountId = opts.accountId ?? (await activeAccount(userId, opts.kind ?? "human")).id;
+  const salt = newSalt();
 
   return db().begin(async (tx) => {
-    const a = await lockAccount(tx, acct.id);
-    const { free, openOrders } = await freeMargin(tx, acct.id, a.cash, live);
+    const a = await lockAccount(tx, accountId);
+    const [snap] = await tx`
+      select
+        coalesce((select json_agg(json_build_object('coin', coin, 'side', side, 'size_usd', size_usd,
+                                                    'leverage', leverage, 'entry_px', entry_px))
+                  from positions where account_id = ${accountId} and closed_at is null), '[]'::json) as open,
+        coalesce((select json_agg(json_build_object('size_usd', size_usd, 'leverage', leverage))
+                  from orders where account_id = ${accountId} and status = 'open'), '[]'::json) as resting,
+        (select hash from ledger where account_id = ${accountId} order by seq desc limit 1) as head`;
+
+    const [priceR, marketR] = await Promise.allSettled([priceP, marketP]);
+    if (marketR.status === "rejected") throw new LedgerError("Market data is unavailable right now. Try again.", 503);
+    const [maxLev, bars] = marketR.value;
+    if (!(o.coin in maxLev)) throw new LedgerError("unknown market");
+    if (priceR.status === "rejected") throw new LedgerError("No price for this market right now. Try again.", 503);
+    const { px, at, ms: priceMs } = priceR.value;
+    const fill = { px, at };
+    const timing = { priceMs: Math.round(priceMs) };
+
+    const lev = Math.min(o.leverage, maxLev[o.coin], MAX_LEVERAGE);
+    const features = computeFeatures(bars.slice(-90), px);
+    // A limit that is already through the market fills now, like on a real exchange
+    const resting =
+      o.type === "limit" && o.limitPx != null && (o.side === "long" ? o.limitPx < px : o.limitPx > px) ? o.limitPx : null;
+    if (resting != null && Math.abs(resting / px - 1) > MAX_LIMIT_DISTANCE)
+      throw new LedgerError("Limit price is too far from the market");
+    const tpslError = checkTpSl(o.side, resting ?? px, o.tpPx, o.slPx, resting != null ? "limit price" : "entry price");
+    if (tpslError) throw new LedgerError(tpslError);
+
+    // Free margin: equity minus margin in use and margin held for resting orders
+    const open = snap.open as { coin: string; side: Side; size_usd: number; leverage: number; entry_px: number }[];
+    const others = open.some((p) => p.coin !== o.coin) ? await midsP.catch(() => ({}) as Record<string, number>) : {};
+    const prices: Record<string, number> = { ...others, [o.coin]: px };
+    const held = (snap.resting as { size_usd: number; leverage: number }[]).reduce(
+      (s, r) => s + reserved({ sizeUsd: r.size_usd, leverage: r.leverage }),
+      0,
+    );
+    const upnl = open.reduce(
+      (s, p) =>
+        s + (prices[p.coin] ? unrealized({ side: p.side, sizeUsd: p.size_usd, entryPx: p.entry_px } as Position, prices[p.coin]) : 0),
+      0,
+    );
+    const free = a.cash + upnl - open.reduce((s, p) => s + p.size_usd / p.leverage, 0) - held;
+    const prev: string = snap.head ?? genesis(accountId);
     const featuresJson = features ? tx.json(features as unknown as postgres.JSONValue) : null;
-    const salt = newSalt();
 
     if (resting != null) {
-      if (openOrders >= MAX_OPEN_ORDERS) throw new LedgerError(`Up to ${MAX_OPEN_ORDERS} open orders`);
+      if ((snap.resting as unknown[]).length >= MAX_OPEN_ORDERS) throw new LedgerError(`Up to ${MAX_OPEN_ORDERS} open orders`);
       if (reserved({ sizeUsd: o.sizeUsd, leverage: lev }) > free) throw new LedgerError("Not enough free margin");
-      const [r] = await tx`
-        insert into orders (account_id, coin, side, size_usd, leverage, limit_px, tp_px, sl_px, strategy, rationale,
-                            rationale_salt, features)
-        values (${acct.id}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${resting}, ${o.tpPx}, ${o.slPx}, ${o.strategy},
-                ${o.rationale}, ${salt}, ${featuresJson})
-        returning *`;
-      const order = toOrder(r);
-      await append(tx, acct.id, "order", {
-        order_id: order.id,
-        coin: order.coin,
-        side: order.side,
-        size_usd: order.sizeUsd,
-        leverage: order.leverage,
-        limit_px: order.limitPx,
-        placed_at: new Date(order.placedAt).toISOString(),
-        strategy: order.strategy,
-        rationale_commitment: reasonCommitment(salt, order.rationale),
+      const id = randomUUID();
+      const placedAt = new Date();
+      const payload = {
+        order_id: id,
+        coin: o.coin,
+        side: o.side,
+        size_usd: o.sizeUsd,
+        leverage: lev,
+        limit_px: resting,
+        placed_at: placedAt.toISOString(),
+        strategy: o.strategy,
+        rationale_commitment: reasonCommitment(salt, o.rationale),
         features,
-        tp_px: order.tpPx ?? undefined,
-        sl_px: order.slPx ?? undefined,
-      });
-      return { order };
+        tp_px: o.tpPx ?? undefined,
+        sl_px: o.slPx ?? undefined,
+      };
+      const hash = chainHash(prev, "order", payload);
+      const [r] = await tx`
+        with ins as (
+          insert into orders (id, account_id, coin, side, size_usd, leverage, limit_px, tp_px, sl_px, strategy, rationale,
+                              rationale_salt, features, placed_at, checked_at)
+          values (${id}, ${accountId}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${resting}, ${o.tpPx}, ${o.slPx},
+                  ${o.strategy}, ${o.rationale}, ${salt}, ${featuresJson}, ${placedAt}, ${placedAt})
+          returning *),
+        led as (
+          insert into ledger (account_id, kind, payload, prev_hash, hash)
+          values (${accountId}, 'order', ${tx.json(payload as postgres.JSONValue)}, ${prev}, ${hash})
+          returning 1)
+        select ins.* from ins, led`;
+      return { order: toOrder(r), cash: a.cash, fill, timing };
     }
 
     const fee = entryFee(o.sizeUsd);
     if (o.sizeUsd / lev + fee > free) throw new LedgerError("Not enough free margin");
-    const [r] = await tx`
-      insert into positions (account_id, coin, side, size_usd, leverage, entry_px, strategy, rationale, rationale_salt,
-                             entry_features, entry_fee, tp_px, sl_px, agent_p)
-      values (${acct.id}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${px}, ${o.strategy}, ${o.rationale}, ${salt},
-              ${featuresJson}, ${fee}, ${o.tpPx}, ${o.slPx}, ${opts.agentP ?? null})
-      returning *`;
-    await tx`update sim_accounts set cash = cash - ${fee} where id = ${acct.id}`;
-    const p = toPosition(r);
-    await append(tx, acct.id, "open", {
-      position_id: p.id,
-      coin: p.coin,
-      side: p.side,
-      size_usd: p.sizeUsd,
-      leverage: p.leverage,
-      entry_px: p.entryPx,
-      opened_at: new Date(p.openedAt).toISOString(),
-      strategy: p.strategy,
-      rationale_commitment: reasonCommitment(salt, p.rationale),
+    const id = randomUUID();
+    const openedAt = new Date(at); // Hyperliquid's time for the price this order met
+    const payload = {
+      position_id: id,
+      coin: o.coin,
+      side: o.side,
+      size_usd: o.sizeUsd,
+      leverage: lev,
+      entry_px: px,
+      opened_at: openedAt.toISOString(),
+      strategy: o.strategy,
+      rationale_commitment: reasonCommitment(salt, o.rationale),
       features,
-      tp_px: p.tpPx ?? undefined,
-      sl_px: p.slPx ?? undefined,
+      tp_px: o.tpPx ?? undefined,
+      sl_px: o.slPx ?? undefined,
       agent_p: opts.agentP,
-    });
-    return { position: p };
+    };
+    const hash = chainHash(prev, "open", payload);
+    const [r] = await tx`
+      with pos as (
+        insert into positions (id, account_id, coin, side, size_usd, leverage, entry_px, opened_at, strategy, rationale,
+                               rationale_salt, entry_features, entry_fee, tp_px, sl_px, agent_p)
+        values (${id}, ${accountId}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${px}, ${openedAt}, ${o.strategy},
+                ${o.rationale}, ${salt}, ${featuresJson}, ${fee}, ${o.tpPx}, ${o.slPx}, ${opts.agentP ?? null})
+        returning *),
+      acct as (update sim_accounts set cash = cash - ${fee} where id = ${accountId} returning cash),
+      led as (
+        insert into ledger (account_id, kind, payload, prev_hash, hash)
+        values (${accountId}, 'open', ${tx.json(payload as postgres.JSONValue)}, ${prev}, ${hash})
+        returning 1)
+      select pos.*, acct.cash as account_cash from pos, acct, led`;
+    return { position: toPosition(r), cash: r.account_cash, fill, timing };
   });
 }
 
@@ -582,23 +674,52 @@ export async function setTpSl(userId: string, positionId: string, body: unknown)
   });
 }
 
+export interface CloseResult {
+  trade: ClosedTrade;
+  cash: number;
+  /** True when it had already hit its stop, target or liquidation and closed there. */
+  triggered: boolean;
+  timing: { priceMs: number };
+}
+
+/**
+ * Closes a position at the market price when the request arrives. Before that, the price
+ * history since it was last checked is replayed for this one position: if it already went
+ * through its stop loss, take profit or liquidation, it closes there instead, so a stop
+ * can't be dodged by closing by hand. `coin` lets the price fetch start straight away; it is
+ * checked against the position.
+ */
 export async function closePosition(
   userId: string,
   positionId: string,
-  opts: { kind?: AccountKind; reason?: "manual" | "time_stop" } = {},
-): Promise<ClosedTrade> {
-  const acct = await activeAccount(userId, opts.kind ?? "human");
-  await sweep(acct.id, true);
-  const [r] = await db()`select coin from positions where id = ${positionId} and account_id = ${acct.id} and closed_at is null`;
-  if (!r) throw new LedgerError("position is not open (it may have hit a trigger)", 404);
-  const px = (await mids())[r.coin];
-  if (!px) throw new LedgerError("no price for this market right now", 503);
-  const closed = await db().begin(async (tx) => {
-    await lockAccount(tx, acct.id);
-    return settle(tx, acct.id, positionId, px, Date.now(), opts.reason ?? "manual");
+  opts: { kind?: AccountKind; reason?: "manual" | "time_stop"; accountId?: string; coin?: string } = {},
+): Promise<CloseResult> {
+  const started = performance.now();
+  const timedPrice = (coin: string) => fillPrice(coin).then((r) => ({ ...r, ms: performance.now() - started }));
+  let priceP = opts.coin ? timedPrice(opts.coin) : null;
+  priceP?.catch(() => {});
+  const accountId = opts.accountId ?? (await activeAccount(userId, opts.kind ?? "human")).id;
+
+  return db().begin(async (tx) => {
+    await lockAccount(tx, accountId);
+    const [r] = await tx`
+      select p.*, (select hash from ledger where account_id = ${accountId} order by seq desc limit 1) as head
+      from positions p where p.id = ${positionId} and p.account_id = ${accountId} and p.closed_at is null`;
+    if (!r) throw new LedgerError("position is not open (it may have hit a trigger)", 404);
+    if (!priceP || opts.coin !== r.coin) priceP = timedPrice(r.coin);
+
+    const p = toPosition(r);
+    const from = checkpoint(r);
+    const [priceR, barsR] = await Promise.allSettled([priceP, closedBarsSince(p.coin, from)]);
+    if (priceR.status === "rejected") throw new LedgerError("No price for this market right now. Try again.", 503);
+    const { px, at, ms: priceMs } = priceR.value;
+    const past = barsR.status === "fulfilled" ? firstExit(p, barsR.value, from, Date.now()) : null;
+    const liveHit = past ? null : triggerHit(p, px, px);
+    const exit: Exit = past ?? (liveHit ? { ...liveHit, at } : { px, at, reason: opts.reason ?? "manual" });
+    const res = await writeClose(tx, accountId, r, exit, r.head ?? genesis(accountId));
+    if (!res) throw new LedgerError("position is not open", 404);
+    return { trade: res.trade, cash: res.cash, triggered: !!(past || liveHit), timing: { priceMs: Math.round(priceMs) } };
   });
-  if (!closed) throw new LedgerError("position is not open", 404);
-  return closed;
 }
 
 /** Archives the person's active account (its ledger is kept) and starts a fresh one. */

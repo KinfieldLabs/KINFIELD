@@ -41,6 +41,12 @@ before deploying the code that needs them; the live release keeps working in bet
 - Sign in with GitHub (public profile only). Sessions are httpOnly cookies; only token hashes are stored.
 - Signed-in trades never trust the browser: the server takes the fill price from Hyperliquid,
   computes the entry features itself, and enforces margin and leverage caps.
+- Market orders fill at Hyperliquid's mid for that market, fetched fresh the moment the order
+  arrives (never a cached price) and timestamped by Hyperliquid; the account is locked and read
+  while that price is in flight, and the position, cash and ledger entry are written in one
+  statement. Closing by hand first replays that position's price history, so a stop that was
+  already hit can't be dodged. `/api/health` reports the server's latency to the database and to
+  Hyperliquid.
 - Resting limit orders, take profit, stop loss and liquidation are replayed against real price
   history (1-minute bars, then 15-minute and hourly further back), so they fire at the right
   price and time even while nobody has the page open. When one bar touches both a protective

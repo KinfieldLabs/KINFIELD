@@ -3,7 +3,7 @@ import { computeFeatures } from "@/lib/features";
 import { liquidationPx, unrealized, type ClosedTrade, type Position, type Side } from "@/lib/sim-core";
 import { db } from "./db";
 import { activeAccount, closePosition, placeOrder, sweep } from "./ledger";
-import { maxLeverage, mids, recentMinuteBars } from "./market";
+import { maxLeverage, mids, minuteBars } from "./market";
 
 /**
  * The apprentice trading on its own. Every run (scheduled every 15 minutes), for each
@@ -102,11 +102,11 @@ async function runOne(u: { id: string; agent_id: string }): Promise<AgentRunResu
   // 2. Its own account: settle triggers, then enforce the time limit
   const acct = await activeAccount(u.id, "agent");
   await sweep(acct.id, true);
-  const stale = await sql`select id from positions where account_id = ${acct.id} and closed_at is null
+  const stale = await sql`select id, coin from positions where account_id = ${acct.id} and closed_at is null
                           and opened_at < ${new Date(Date.now() - AGENT.maxHoldMs)}`;
   for (const s of stale) {
     try {
-      await closePosition(u.id, s.id, { kind: "agent", reason: "time_stop" });
+      await closePosition(u.id, s.id, { kind: "agent", reason: "time_stop", accountId: acct.id, coin: s.coin });
       result.timeStops++;
     } catch {
       // already closed by a trigger
@@ -135,7 +135,7 @@ async function runOne(u: { id: string; agent_id: string }): Promise<AgentRunResu
       continue;
     }
     const px = live[coin];
-    const bars = await recentMinuteBars(coin).catch(() => []);
+    const bars = await minuteBars(coin, Date.now() - 95 * 60_000).catch(() => []);
     const features = computeFeatures(bars.slice(-90), px);
     if (!features) {
       result.decisions.push({ coin, action: "skip", note: "Not enough recent price data" });
@@ -173,7 +173,7 @@ async function runOne(u: { id: string; agent_id: string }): Promise<AgentRunResu
           strategy: "Other",
           rationale: `Agent: ${confidence}% confident ${side}, model trained on ${model.samples} of your trades. Stop ${(stop * 100).toFixed(2)}% away, target ${(stop * AGENT.rewardToRisk * 100).toFixed(2)}%.`,
         },
-        { kind: "agent", agentP: p },
+        { kind: "agent", agentP: p, accountId: acct.id },
       );
       result.decisions.push({ coin, action: side, p, sizeUsd, stop, note: `Opened ${side} at ${confidence}% confidence` });
       open.push({ coin, side, sizeUsd, leverage: lev, entryPx: px } as Position);

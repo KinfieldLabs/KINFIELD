@@ -17,6 +17,8 @@ export interface User {
   showLogin: boolean;
   /** Whether the user has answered the data-sharing question yet. */
   sharingDecided: boolean;
+  /** Their active simulated account, fetched with the session so a trade needs one less query. */
+  accountId: string | null;
 }
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -69,7 +71,9 @@ export async function currentUser(): Promise<User | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const [u] = await db()`
-    select u.* from sessions s join users u on u.id = s.user_id
+    select u.*,
+           (select a.id from sim_accounts a where a.user_id = u.id and a.kind = 'human' and a.archived_at is null) as account_id
+    from sessions s join users u on u.id = s.user_id
     where s.token_hash = ${sha256(token)} and s.expires_at > now()`;
   if (!u) return null;
   return {
@@ -83,6 +87,7 @@ export async function currentUser(): Promise<User | null> {
     agentId: u.agent_id,
     showLogin: u.show_login,
     sharingDecided: !!u.publish_decided_at,
+    accountId: u.account_id ?? null,
   };
 }
 

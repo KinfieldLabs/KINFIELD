@@ -109,6 +109,7 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
 
   const submit = async () => {
     if (error || !mid || sending) return;
+    const clickedPx = mid;
     setSending(true);
     setResult(null);
     const res = await onSubmit({
@@ -127,11 +128,11 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
     else {
       setResult({
         ok: true,
-        text: res.filled
-          ? type === "limit"
-            ? "Filled now: the price had already reached your limit"
-            : "Order filled"
-          : "Limit order placed. It fills when the price reaches it.",
+        text: !res.filled
+          ? "Limit order placed. It fills when the price reaches it."
+          : res.px == null
+            ? "Order filled"
+            : fillSummary(res.px, clickedPx, res.roundTripMs, res.serverMs, type === "limit"),
       });
       setRationale("");
       setTp("");
@@ -329,6 +330,14 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
       {result && <p className={`text-xs ${result.ok ? "text-long" : "text-short"}`}>{result.text}</p>}
     </div>
   );
+}
+
+/** "Filled at 65,335 in 310 ms (server 140 ms) · price moved 0.002% since your click" */
+function fillSummary(px: number, clickedPx: number, roundTripMs?: number, serverMs?: number, wasLimit = false) {
+  const moved = Math.abs(px / clickedPx - 1);
+  const time = roundTripMs ? ` in ${roundTripMs} ms${serverMs != null ? ` (server ${serverMs} ms)` : ""}` : "";
+  const drift = moved < 0.000005 ? "same price as your click" : `price moved ${(moved * 100).toFixed(3)}% since your click`;
+  return `${wasLimit ? "Your limit was already reached. " : ""}Filled at ${fmtPxAt(px, px)}${time} · ${drift}`;
 }
 
 function PriceField({

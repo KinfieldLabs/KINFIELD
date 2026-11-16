@@ -12,10 +12,16 @@ export function authed<C>(handler: (user: User, req: NextRequest, ctx: C) => Pro
       const origin = req.headers.get("origin");
       if (origin && origin !== req.nextUrl.origin) return NextResponse.json({ error: "cross-site request" }, { status: 403 });
     }
+    const started = performance.now();
     const user = await currentUser();
     if (!user) return NextResponse.json({ error: "Sign in to continue" }, { status: 401 });
     try {
-      return NextResponse.json(await handler(user, req, ctx));
+      const result = await handler(user, req, ctx);
+      // Server time for the whole request, so the terminal can show how long a fill took here
+      const serverMs = Math.round(performance.now() - started);
+      if (result && typeof result === "object" && "timing" in result)
+        (result as { timing: Record<string, number> }).timing.serverMs = serverMs;
+      return NextResponse.json(result, { headers: { "server-timing": `app;dur=${serverMs}` } });
     } catch (e) {
       if (e instanceof LedgerError) return NextResponse.json({ error: e.message }, { status: e.status });
       console.error(e);
