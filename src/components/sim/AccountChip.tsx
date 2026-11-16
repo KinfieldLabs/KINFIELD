@@ -15,8 +15,8 @@ export function AccountChip({ me, onSignOut }: { me: Me | null; onSignOut: () =>
             {me.user.login.slice(0, 2).toUpperCase()}
           </span>
         )}
-        <span className="font-mono text-xs">@{me.user.login}</span>
-        <button onClick={onSignOut} className="text-muted underline-offset-2 hover:text-cream hover:underline">
+        <span className="hidden font-mono text-xs sm:inline">@{me.user.login}</span>
+        <button onClick={onSignOut} className="whitespace-nowrap text-xs text-muted underline-offset-2 hover:text-cream hover:underline">
           Sign out
         </button>
       </div>

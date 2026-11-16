@@ -10,9 +10,11 @@ interface Props {
   coin: string;
   history: ClosedTrade[];
   features: MarketFeatures | null;
+  /** Inside another panel: no frame, no export button. */
+  bare?: boolean;
 }
 
-export function AgentPanel({ coin, history, features }: Props) {
+export function AgentPanel({ coin, history, features, bare = false }: Props) {
   const model = useMemo(() => trainAgent(history), [history]);
   const pLong = model && features ? predict(model, features) : null;
   const labeled = history.filter((t) => t.entryFeatures).length;
@@ -30,7 +32,7 @@ export function AgentPanel({ coin, history, features }: Props) {
   const maxW = model ? Math.max(...model.weights.map(Math.abs), 1e-6) : 1;
 
   return (
-    <div className="panel flex flex-col gap-4 p-4">
+    <div className={bare ? "flex max-w-2xl flex-col gap-4 p-4" : "panel flex flex-col gap-4 p-4"}>
       <div className="flex items-center gap-2">
         <Mark className="h-4 w-4 text-cyan" />
         <h3 className="text-sm font-semibold">Apprentice agent</h3>
@@ -99,6 +101,7 @@ export function AgentPanel({ coin, history, features }: Props) {
         </>
       )}
 
+      {!bare && (
       <button
         onClick={exportData}
         disabled={!history.length}
@@ -106,6 +109,7 @@ export function AgentPanel({ coin, history, features }: Props) {
       >
         Export training data (.jsonl)
       </button>
+      )}
     </div>
   );
 }

@@ -3,75 +3,75 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { useLedger, useMe, type Ledger } from "@/lib/account";
 import { computeFeatures } from "@/lib/features";
-import { fmtCompact, fmtPct, fmtPx, fmtUsd, tone } from "@/lib/format";
-import { fetchCandles, fetchMarkets, MARKETS, type Candle, type Interval, type MarketCtx } from "@/lib/hyperliquid";
-import { useLedger, useMe } from "@/lib/account";
-import { liquidationPx, margin, unrealized } from "@/lib/sim";
+import { fmtPct, fmtUsd, tone } from "@/lib/format";
+import { useAllMids, useAssetCtx, useHlStatus } from "@/lib/hl-socket";
+import { fetchCandles, fetchMarkets, INTERVALS, type Candle, type Interval, type MarketCtx } from "@/lib/hyperliquid";
+import { limitCrossed, margin, reserved, triggerHit, unrealized } from "@/lib/sim";
 import { AccountChip } from "./AccountChip";
-import { AgentPanel } from "./AgentPanel";
 import { Blotter } from "./Blotter";
+import { MarketBar } from "./MarketBar";
+import { OrderBook } from "./OrderBook";
 import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
 
-const INTERVALS: Interval[] = ["1m", "5m", "15m", "1h"];
+/** A small preference remembered in this browser (market, chart interval). */
+function useRemembered<T extends string>(key: string, initial: T, valid: (v: string) => boolean = () => true) {
+  const [value, setValue] = useState<T>(initial);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(key);
+      if (v && valid(v)) setValue(v as T);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const set = (v: T) => {
+    setValue(v);
+    try {
+      localStorage.setItem(key, v);
+    } catch {}
+  };
+  return [value, set] as const;
+}
 
 export function Terminal() {
   const { me, signOut } = useMe();
   const ledger = useLedger(!!me?.user);
-  const { state, liquidated } = ledger;
+  const { state, fire, poke } = ledger;
   const ready = !!me && ledger.ready;
-  const [notice, setNotice] = useState<string | null>(null);
-  const [coin, setCoin] = useState<string>("BTC");
-  const [interval, setInterval_] = useState<Interval>("5m");
+  const status = useHlStatus();
+
+  const [coin, setCoin] = useRemembered<string>("kinfield.coin", "BTC", (v) => /^[A-Za-z0-9]{1,20}$/.test(v));
+  const [interval, setInterval_] = useRemembered<Interval>("kinfield.interval", "15m", (v) =>
+    INTERVALS.includes(v as Interval),
+  );
   const [markets, setMarkets] = useState<Record<string, MarketCtx>>({});
-  const [candles, setCandles] = useState<Candle[]>([]);
   const [minuteBars, setMinuteBars] = useState<Candle[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [pick, setPick] = useState<{ px: number; n: number } | null>(null);
 
-  // Live market contexts (all tracked coins + any held coins)
-  const tracked = useMemo(
-    () => Array.from(new Set([...MARKETS, ...state.positions.map((p) => p.coin)])),
-    [state.positions],
-  );
-  useEffect(() => {
-    let alive = true;
-    const tick = async () => {
-      try {
-        const m = await fetchMarkets(tracked);
-        if (alive) {
-          setMarkets(m);
-          setError(null);
-        }
-      } catch (e) {
-        if (alive) setError((e as Error).message);
-      }
-    };
-    tick();
-    const id = setInterval(tick, 2000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [tracked]);
-
-  // Chart history
+  // Every listed market with 24h stats (prices themselves stream over the socket)
   useEffect(() => {
     let alive = true;
     const load = () =>
-      fetchCandles(coin, interval, 300)
-        .then((c) => alive && setCandles(c))
-        .catch((e) => alive && setError(e.message));
-    setCandles([]);
+      fetchMarkets()
+        .then((m) => {
+          if (!alive) return;
+          setMarkets(m);
+          setError(null);
+        })
+        .catch((e) => alive && setError((e as Error).message));
     load();
-    const id = setInterval(load, 60_000);
+    const id = setInterval(load, 15_000);
     return () => {
       alive = false;
       clearInterval(id);
     };
-  }, [coin, interval]);
+  }, []);
 
-  // 1-minute bars for the agent's feature vector
+  // 1-minute bars for the apprentice's view of the market
   useEffect(() => {
     let alive = true;
     const load = () =>
@@ -87,194 +87,213 @@ export function Terminal() {
     };
   }, [coin]);
 
+  const liveMids = useAllMids();
   const prices = useMemo(
-    () => Object.fromEntries(Object.values(markets).map((m) => [m.coin, m.mid])),
-    [markets],
+    () => ({ ...Object.fromEntries(Object.values(markets).map((m) => [m.coin, m.mid])), ...liveMids }),
+    [markets, liveMids],
   );
+  const live = useAssetCtx(coin);
   const market = markets[coin];
-  const features = useMemo(() => computeFeatures(minuteBars, market?.mid ?? 0), [minuteBars, market?.mid]);
+  const mid = prices[coin];
+  const features = useMemo(() => computeFeatures(minuteBars, mid ?? 0), [minuteBars, mid]);
 
-  // Liquidations
+  // Live triggers: take profit, stop loss, liquidation, limit fills
   useEffect(() => {
     for (const p of state.positions) {
       const px = prices[p.coin];
-      if (!px) continue;
-      const liq = liquidationPx(p);
-      if ((p.side === "long" && px <= liq) || (p.side === "short" && px >= liq)) liquidated(p, px);
+      const hit = px ? triggerHit(p, px, px) : null;
+      if (hit) fire(p, hit);
     }
-  }, [prices, state.positions, liquidated]);
+    for (const o of state.orders) {
+      const px = prices[o.coin];
+      if (px && limitCrossed(o, px, px)) poke();
+    }
+  }, [prices, state.positions, state.orders, fire, poke]);
 
   const upnl = state.positions.reduce((a, p) => a + (prices[p.coin] ? unrealized(p, prices[p.coin]) : 0), 0);
   const used = state.positions.reduce((a, p) => a + margin(p), 0);
+  const held = state.orders.reduce((a, o) => a + reserved(o), 0);
   const equity = state.cash + upnl;
-  const freeMargin = Math.max(equity - used, 0);
-  const realized = state.history.reduce((a, t) => a + t.pnl, 0);
-  const wins = state.history.filter((t) => t.pnl > 0).length;
+  const free = Math.max(equity - used - held, 0);
+
+  const selectCoin = (c: string) => {
+    setCoin(c);
+    setPick(null);
+  };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-4 py-3">
+    <div className="flex min-h-screen flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden">
+      <header className="flex items-center gap-x-5 gap-y-2 border-b border-line px-3 py-2">
         <Logo />
-        <span className="rounded-full border border-cyan/40 bg-cyan/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-cyan">
+        <span className="rounded-full border border-cyan/40 bg-cyan/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan">
           Simulation
         </span>
-        <div className="ml-auto flex flex-wrap items-center gap-x-6 gap-y-1 text-xs">
-          <Stat label="Equity" value={fmtUsd(equity)} />
-          <Stat label="Unrealized" value={fmtUsd(upnl, true)} className={tone(upnl)} />
-          <Stat label="Realized" value={fmtUsd(realized, true)} className={tone(realized)} />
-          <Stat label="Return" value={fmtPct(equity / ledger.startingBalance - 1)} className={tone(equity - ledger.startingBalance)} />
-          <Stat
-            label="Win rate"
-            value={state.history.length ? `${((wins / state.history.length) * 100).toFixed(0)}%` : "N/A"}
-          />
-          <button
-            onClick={() =>
-              confirm(
-                ledger.mode === "account"
-                  ? "Start a new simulated account? Your current record is archived, not deleted."
-                  : "Reset your simulated account and trade log?",
-              ) && ledger.reset()
-            }
-            className="text-muted underline-offset-2 hover:text-cream hover:underline"
-          >
-            Reset
-          </button>
+        <div className="ml-auto flex items-center gap-x-5">
+          <div className="hidden items-center gap-x-5 text-xs sm:flex">
+            <HeaderStat label="Equity" value={fmtUsd(equity)} />
+            <HeaderStat
+              label="Return"
+              value={fmtPct(equity / ledger.startingBalance - 1)}
+              className={tone(equity - ledger.startingBalance)}
+            />
+          </div>
           <AccountChip me={me} onSignOut={signOut} />
         </div>
       </header>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-line px-2">
-        {MARKETS.map((c) => {
-          const m = markets[c];
-          return (
-            <button
-              key={c}
-              onClick={() => setCoin(c)}
-              className={`-mb-px flex shrink-0 items-baseline gap-2 border-b-2 px-3 py-2.5 text-sm ${
-                coin === c ? "border-cyan" : "border-transparent opacity-70 hover:opacity-100"
-              }`}
-            >
-              <span className="font-semibold">{c}</span>
-              <span className="font-mono text-xs">{m ? fmtPx(m.mid) : "…"}</span>
-              {m && <span className={`font-mono text-[11px] ${tone(m.change24h)}`}>{fmtPct(m.change24h)}</span>}
-            </button>
-          );
-        })}
-      </div>
+      <MarketBar coin={coin} markets={markets} live={live} price={mid} status={status} onPick={selectCoin} />
 
       {me && !me.user && (
-        <div className="border-b border-line bg-navy-900/60 px-4 py-2 text-xs text-muted">
-          Guest mode: trades stay in this browser only.{" "}
-          {me.signIn.available
-            ? "Sign in to keep a verified track record your agent can be judged on."
-            : "Accounts are not set up on this server yet."}
+        <div className="border-b border-line bg-navy-900/60 px-3 py-1.5 text-xs text-muted">
+          Guest mode: trades stay in this browser, and limit orders are off.{" "}
+          {me.signIn.available ? "Sign in to keep a verified track record your agent can be judged on." : ""}
         </div>
       )}
-      {me?.user && ledger.ledger && (
-        <div className="border-b border-line bg-navy-900/60 px-4 py-2 font-mono text-[11px] text-muted">
-          Verified ledger: {ledger.ledger.entries} fills recorded by Kinfield · head {ledger.ledger.head.slice(0, 12)}
-        </div>
-      )}
-      {notice && (
-        <div className="flex items-center justify-between border-b border-short/30 bg-short/10 px-4 py-2 text-xs text-short">
-          {notice}
-          <button onClick={() => setNotice(null)} className="underline">
-            Dismiss
-          </button>
-        </div>
-      )}
-      {error && (
-        <div className="border-b border-short/30 bg-short/10 px-4 py-2 text-xs text-short">
-          Market data issue: {error}. Retrying…
+      {(notice || error) && (
+        <div className="flex items-center justify-between gap-4 border-b border-short/30 bg-short/10 px-3 py-1.5 text-xs text-short">
+          <span>{notice ?? `Market data issue: ${error}. Retrying…`}</span>
+          {notice && (
+            <button onClick={() => setNotice(null)} className="underline">
+              Dismiss
+            </button>
+          )}
         </div>
       )}
 
-      <main className="grid flex-1 gap-3 p-3 lg:grid-cols-[1fr_320px]">
-        <div className="flex min-w-0 flex-col gap-3">
-          <div className="panel flex flex-col">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-3">
-              <div className="flex items-baseline gap-3">
-                <span className="text-2xl tracking-[-0.03em]">{coin}-USD</span>
-                <span className="font-mono text-xl font-light">{market ? fmtPx(market.mid) : "…"}</span>
-              </div>
-              {market && (
-                <div className="flex gap-5 text-xs">
-                  <Stat label="24h" value={fmtPct(market.change24h)} className={tone(market.change24h)} />
-                  <Stat label="24h volume" value={fmtCompact(market.volume24h)} />
-                  <Stat label="Funding / 1h" value={fmtPct(market.funding, 4)} className={tone(market.funding)} />
-                </div>
-              )}
-              <div className="ml-auto flex gap-1 rounded-full bg-navy-950/60 p-1">
-                {INTERVALS.map((i) => (
-                  <button
-                    key={i}
-                    onClick={() => setInterval_(i)}
-                    className={`rounded-full px-2.5 py-1 font-mono text-xs ${
-                      interval === i ? "bg-navy-700 text-cream" : "text-muted hover:text-cream"
-                    }`}
-                  >
-                    {i}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="relative h-[420px]">
-              <PriceChart
-                candles={candles}
-                interval={interval}
-                livePx={market?.mid}
-                positions={state.positions.filter((p) => p.coin === coin)}
-              />
-              {!candles.length && (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted">
-                  Loading {coin} candles…
-                </div>
-              )}
-            </div>
-          </div>
+      <main className="grid flex-1 grid-cols-1 gap-2 p-2 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_280px_320px] lg:grid-rows-[minmax(0,1fr)_250px]">
+        <section className="tpanel h-[440px] overflow-hidden lg:col-start-1 lg:row-start-1 lg:h-auto lg:min-h-0">
+          <PriceChart
+            coin={coin}
+            interval={interval}
+            onInterval={setInterval_}
+            positions={state.positions.filter((p) => p.coin === coin)}
+            orders={state.orders.filter((o) => o.coin === coin)}
+            history={state.history.filter((t) => t.coin === coin)}
+          />
+        </section>
 
-          <div className="h-[280px]">
-            <Blotter
-              positions={state.positions}
-              history={state.history}
-              prices={prices}
-              onClose={async (p) => {
-                if (!prices[p.coin]) return;
-                setNotice(await ledger.close(p, prices[p.coin]));
-              }}
-            />
-          </div>
-        </div>
-
-        <aside className="flex flex-col gap-3">
+        <aside className="tpanel flex flex-col overflow-y-auto scroll-thin lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:min-h-0">
           <OrderTicket
             coin={coin}
-            price={market?.mid}
-            freeMargin={freeMargin}
-            maxLeverage={Math.min(market?.maxLeverage ?? 20, 20)}
+            mid={mid}
+            market={market}
+            freeMargin={free}
+            guest={ledger.mode === "guest"}
             ready={!!market && ready}
-            onSubmit={async (o) =>
-              market ? ledger.open({ ...o, coin, entryPx: market.mid, entryFeatures: features }) : "No price yet"
-            }
+            pick={pick}
+            onSubmit={(o) => ledger.open({ ...o, coin, entryPx: mid, entryFeatures: features })}
           />
-          <AgentPanel coin={coin} history={state.history} features={features} />
-          <p className="px-1 text-[11px] leading-relaxed text-muted/80">
+          <AccountSummary ledger={ledger} equity={equity} upnl={upnl} used={used} held={held} free={free} />
+          <p className="mt-auto px-3 pb-3 text-[10px] leading-relaxed text-muted/80">
             Simulated trading with live prices from Hyperliquid. No real funds are used. Not financial advice.{" "}
             <Link href="/" className="underline">
               About Kinfield
             </Link>
           </p>
         </aside>
+
+        <section className="h-[460px] lg:col-start-2 lg:row-start-1 lg:h-auto lg:min-h-0">
+          <OrderBook
+            coin={coin}
+            mid={mid}
+            szDecimals={market?.szDecimals ?? 4}
+            onPickPrice={(px) => setPick((p) => ({ px, n: (p?.n ?? 0) + 1 }))}
+          />
+        </section>
+
+        <section className="h-[340px] lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:h-auto lg:min-h-0">
+          <Blotter
+            coin={coin}
+            positions={state.positions}
+            orders={state.orders}
+            history={state.history}
+            prices={prices}
+            markets={markets}
+            features={features}
+            guest={ledger.mode === "guest"}
+            onSelectCoin={selectCoin}
+            onClose={async (p) => {
+              if (prices[p.coin]) setNotice(await ledger.close(p, prices[p.coin]));
+            }}
+            onCancel={async (o) => setNotice(await ledger.cancel(o))}
+            onSetTpSl={(p, tp, sl) => ledger.setTpSl(p, tp, sl, prices[p.coin] ?? p.entryPx)}
+          />
+        </section>
       </main>
     </div>
   );
 }
 
-function Stat({ label, value, className = "" }: { label: string; value: string; className?: string }) {
+function HeaderStat({ label, value, className = "" }: { label: string; value: string; className?: string }) {
   return (
     <div className="flex flex-col leading-tight">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-muted">{label}</span>
-      <span className={`font-mono ${className}`}>{value}</span>
+      <span className="text-[10px] uppercase tracking-[0.06em] text-muted">{label}</span>
+      <span className={`num ${className}`}>{value}</span>
+    </div>
+  );
+}
+
+function AccountSummary({
+  ledger,
+  equity,
+  upnl,
+  used,
+  held,
+  free,
+}: {
+  ledger: Ledger;
+  equity: number;
+  upnl: number;
+  used: number;
+  held: number;
+  free: number;
+}) {
+  const { history } = ledger.state;
+  const realized = history.reduce((a, t) => a + t.pnl, 0);
+  const wins = history.filter((t) => t.pnl > 0).length;
+  const rows: [string, string, string?][] = [
+    ["Equity", fmtUsd(equity)],
+    ["Balance", fmtUsd(ledger.state.cash)],
+    ["Unrealized PnL", fmtUsd(upnl, true), tone(upnl)],
+    ["Realized PnL", fmtUsd(realized, true), tone(realized)],
+    ["Margin in use", fmtUsd(used)],
+    ...(held ? [["Held for orders", fmtUsd(held)] as [string, string]] : []),
+    ["Free margin", fmtUsd(free)],
+    ["Closed trades", String(history.length)],
+    ["Win rate", history.length ? `${((wins / history.length) * 100).toFixed(0)}%` : "N/A"],
+  ];
+  return (
+    <div className="border-t border-line p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs font-semibold">Account</h3>
+        <button
+          onClick={() =>
+            confirm(
+              ledger.mode === "account"
+                ? "Start a new simulated account? Your current record is archived, not deleted."
+                : "Reset your simulated account and trade log?",
+            ) && ledger.reset()
+          }
+          className="text-[11px] text-muted underline-offset-2 hover:text-cream hover:underline"
+        >
+          {ledger.mode === "account" ? "New account" : "Reset"}
+        </button>
+      </div>
+      <dl className="grid grid-cols-2 gap-y-1 text-[11px]">
+        {rows.map(([k, v, cls]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted">{k}</dt>
+            <dd className={`num text-right ${cls ?? ""}`}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {ledger.ledger && (
+        <p className="mt-3 rounded-lg border border-line bg-navy-950/40 px-2 py-1.5 font-mono text-[10px] leading-relaxed text-muted">
+          Verified ledger: {ledger.ledger.entries} entries recorded by Kinfield
+          <br />
+          head {ledger.ledger.head.slice(0, 16)}
+        </p>
+      )}
     </div>
   );
 }

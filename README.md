@@ -21,22 +21,30 @@ npm run db:migrate
 npm run db:verify              # recompute every account's ledger hash chain
 ```
 
+Migrations only ever add to the schema, so run `npm run db:migrate` against production
+before deploying the code that needs them; the live release keeps working in between.
+
 ## What's here
 
 - `/` landing page
-- `/simulate` trading simulator
-  - Live mids, 24h stats, and candles from Hyperliquid's public `info` API (proxied through `/api/hl`)
-  - Simulated perp positions with leverage, fees, and liquidation; $100k starting balance (stored in localStorage)
-  - Strategy tags and rationale for each trade
+- `/simulate` trading terminal
+  - Every Hyperliquid perp, with live candles, order book, trades and market stats over Hyperliquid's public WebSocket
+  - Market and limit orders, take profit / stop loss, leverage up to 20x, maker and taker fees, liquidation
+  - Positions, open orders and trade history (with why each trade ended), drawn on the chart
+  - Strategy tags and a reason for each trade
   - **Apprentice agent**: a logistic-regression policy trained in the browser on your closed trades
   - Export the trade log as JSONL (context → action → intent → outcome)
+  - Guest mode keeps trades in the browser (market orders only); signing in uses the verified ledger
 
 ## Accounts and the verified ledger
 
 - Sign in with GitHub (public profile only). Sessions are httpOnly cookies; only token hashes are stored.
 - Signed-in trades never trust the browser: the server takes the fill price from Hyperliquid,
-  computes the entry features itself, enforces margin and leverage caps, and liquidates from
-  real 1-minute highs and lows (even while nobody has the page open).
+  computes the entry features itself, and enforces margin and leverage caps.
+- Resting limit orders, take profit, stop loss and liquidation are replayed against real price
+  history (1-minute bars, then 15-minute and hourly further back), so they fire at the right
+  price and time even while nobody has the page open. When one bar touches both a protective
+  level and the take profit, the worse outcome is recorded.
 - Every fill is appended to a hash-chained `ledger` table, so a published dataset can be
   checked against Kinfield's record. Reset archives an account; it never deletes history.
 

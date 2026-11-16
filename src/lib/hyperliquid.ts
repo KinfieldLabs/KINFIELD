@@ -1,12 +1,16 @@
-export const MARKETS = ["BTC", "ETH", "SOL", "HYPE", "XRP", "DOGE"] as const;
+/** Markets shown first; every listed perp is available in the market picker. */
+export const FEATURED = ["BTC", "ETH", "SOL", "HYPE", "XRP", "DOGE"] as const;
 export type Coin = string;
 
-export type Interval = "1m" | "5m" | "15m" | "1h";
+export type Interval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
+export const INTERVALS: Interval[] = ["1m", "5m", "15m", "1h", "4h", "1d"];
 export const INTERVAL_MS: Record<Interval, number> = {
   "1m": 60_000,
   "5m": 300_000,
   "15m": 900_000,
   "1h": 3_600_000,
+  "4h": 14_400_000,
+  "1d": 86_400_000,
 };
 
 export interface Candle {
@@ -21,11 +25,15 @@ export interface Candle {
 export interface MarketCtx {
   coin: Coin;
   mid: number;
+  mark: number;
+  oracle: number;
   prevDay: number;
   change24h: number; // fraction
   volume24h: number; // notional USD
+  openInterest: number; // notional USD
   funding: number; // hourly rate
   maxLeverage: number;
+  szDecimals: number;
 }
 
 async function info<T>(body: unknown): Promise<T> {
@@ -41,29 +49,42 @@ async function info<T>(body: unknown): Promise<T> {
 interface RawCtx {
   midPx: string | null;
   markPx: string;
+  oraclePx: string;
   prevDayPx: string;
   dayNtlVlm: string;
+  openInterest: string;
   funding: string;
 }
 
-export async function fetchMarkets(coins: readonly string[] = MARKETS): Promise<Record<Coin, MarketCtx>> {
-  const [meta, ctxs] = await info<[{ universe: { name: string; maxLeverage: number }[] }, RawCtx[]]>({
-    type: "metaAndAssetCtxs",
-  });
+interface RawAsset {
+  name: string;
+  maxLeverage: number;
+  szDecimals: number;
+  isDelisted?: boolean;
+}
+
+/** Every listed perp with its 24h stats, keyed by coin. */
+export async function fetchMarkets(): Promise<Record<Coin, MarketCtx>> {
+  const [meta, ctxs] = await info<[{ universe: RawAsset[] }, RawCtx[]]>({ type: "metaAndAssetCtxs" });
   const out: Record<Coin, MarketCtx> = {};
   meta.universe.forEach((asset, i) => {
-    if (!coins.includes(asset.name)) return;
     const c = ctxs[i];
+    if (asset.isDelisted || !c) return;
+    const mark = Number(c.markPx);
     const mid = Number(c.midPx ?? c.markPx);
     const prevDay = Number(c.prevDayPx);
     out[asset.name] = {
       coin: asset.name,
       mid,
+      mark,
+      oracle: Number(c.oraclePx),
       prevDay,
       change24h: prevDay ? mid / prevDay - 1 : 0,
       volume24h: Number(c.dayNtlVlm),
+      openInterest: Number(c.openInterest) * mark,
       funding: Number(c.funding),
       maxLeverage: asset.maxLeverage,
+      szDecimals: asset.szDecimals,
     };
   });
   return out;

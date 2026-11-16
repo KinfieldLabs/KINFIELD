@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { STARTING_BALANCE, useSimulator, type ClosedTrade, type Position, type Side, type SimState, type Strategy } from "./sim";
+import {
+  checkTpSl,
+  STARTING_BALANCE,
+  useSimulator,
+  type ClosedTrade,
+  type ExitReason,
+  type Order,
+  type Position,
+  type Side,
+  type SimState,
+  type Strategy,
+} from "./sim";
 
 export interface Me {
   user: { login: string; name: string | null; avatarUrl: string | null } | null;
@@ -27,8 +38,12 @@ export function useMe() {
 export interface OrderRequest {
   coin: string;
   side: Side;
+  type: "market" | "limit";
+  limitPx: number | null;
   sizeUsd: number;
   leverage: number;
+  tpPx: number | null;
+  slPx: number | null;
   strategy: Strategy;
   rationale: string;
   // Guest mode only: in a signed-in account the server sets these itself
@@ -36,17 +51,26 @@ export interface OrderRequest {
   entryFeatures: Position["entryFeatures"];
 }
 
+export type AccountView = SimState & { orders: Order[] };
+
+export type OpenResult = { ok: true; filled: boolean } | { ok: false; error: string };
+
 export interface Ledger {
   mode: "guest" | "account";
-  state: SimState;
+  state: AccountView;
   startingBalance: number;
   ready: boolean;
   ledger?: { entries: number; head: string };
-  /** Resolves to an error message, or null when the order filled. */
-  open: (o: OrderRequest) => Promise<string | null>;
+  /** Resolves to what happened to the order, or an error message. */
+  open: (o: OrderRequest) => Promise<OpenResult>;
+  /** The other actions resolve to an error message, or null on success. */
   close: (p: Position, px: number) => Promise<string | null>;
-  /** A position crossed its liquidation price on the live feed. */
-  liquidated: (p: Position, px: number) => void;
+  cancel: (o: Order) => Promise<string | null>;
+  setTpSl: (p: Position, tpPx: number | null, slPx: number | null, px: number) => Promise<string | null>;
+  /** The live price crossed one of this position's triggers. */
+  fire: (p: Position, hit: { px: number; reason: ExitReason }) => void;
+  /** The live price crossed a resting order's limit (account mode re-checks with the server). */
+  poke: () => void;
   reset: () => Promise<void>;
 }
 
@@ -61,6 +85,7 @@ interface ServerState {
   startingBalance: number;
   cash: number;
   positions: Position[];
+  orders: Order[];
   history: ClosedTrade[];
   ledger: { entries: number; head: string };
 }
@@ -69,6 +94,7 @@ interface ServerState {
 function useAccountLedger(enabled: boolean): Ledger {
   const [s, setS] = useState<ServerState | null>(null);
   const busy = useRef(false);
+  const lastPoke = useRef(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -79,14 +105,14 @@ function useAccountLedger(enabled: boolean): Ledger {
   useEffect(() => {
     if (!enabled) return;
     refresh();
-    // The server sweeps for liquidations on every read
+    // The server replays price history for fills and triggers on every read
     const id = setInterval(refresh, 15_000);
     return () => clearInterval(id);
   }, [enabled, refresh]);
 
   const act = useCallback(
     async (fn: () => Promise<unknown>) => {
-      if (busy.current) return "Still working on the last order";
+      if (busy.current) return "Still working on the last request";
       busy.current = true;
       try {
         await fn();
@@ -101,54 +127,93 @@ function useAccountLedger(enabled: boolean): Ledger {
     [refresh],
   );
 
+  const poke = useCallback(() => {
+    if (busy.current || Date.now() - lastPoke.current < 3000) return;
+    lastPoke.current = Date.now();
+    refresh();
+  }, [refresh]);
+
+  const post = (url: string, body?: unknown) =>
+    act(() => call(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) }));
+
   return {
     mode: "account",
     ready: !!s,
-    state: s ?? { cash: STARTING_BALANCE, positions: [], history: [] },
+    state: s ?? { cash: STARTING_BALANCE, positions: [], orders: [], history: [] },
     startingBalance: s?.startingBalance ?? STARTING_BALANCE,
     ledger: s?.ledger,
-    open: (o) =>
-      act(() =>
-        call("/api/sim/orders", {
+    open: async (o) => {
+      let res: { position?: Position; order?: Order } = {};
+      const error = await act(async () => {
+        res = await call("/api/sim/orders", {
           method: "POST",
           body: JSON.stringify({
-            coin: o.coin,
-            side: o.side,
-            sizeUsd: o.sizeUsd,
-            leverage: o.leverage,
+        coin: o.coin,
+        side: o.side,
+        type: o.type,
+        limitPx: o.limitPx,
+        sizeUsd: o.sizeUsd,
+        leverage: o.leverage,
+        tpPx: o.tpPx,
+        slPx: o.slPx,
             strategy: o.strategy,
             rationale: o.rationale,
           }),
-        }),
-      ),
-    close: (p) => act(() => call(`/api/sim/positions/${p.id}/close`, { method: "POST" })),
-    liquidated: () => {
-      if (!busy.current) refresh();
+        });
+      });
+      return error ? { ok: false, error } : { ok: true, filled: !!res.position };
     },
+    close: (p) => post(`/api/sim/positions/${p.id}/close`),
+    cancel: (o) => post(`/api/sim/orders/${o.id}/cancel`),
+    setTpSl: (p, tpPx, slPx) => post(`/api/sim/positions/${p.id}/tpsl`, { tpPx, slPx }),
+    fire: () => poke(),
+    poke,
     reset: async () => {
-      await act(() => call("/api/sim/reset", { method: "POST" }));
+      await post("/api/sim/reset");
     },
   };
 }
 
-/** Signed-out: the original in-browser simulator. Nothing leaves the browser. */
+/** Signed-out: the in-browser simulator. Nothing leaves the browser. */
 function useGuestLedger(): Ledger {
-  const { state, open, close, reset } = useSimulator();
+  const sim = useSimulator();
   return {
     mode: "guest",
     ready: true,
-    state,
+    state: { ...sim.state, orders: [] },
     startingBalance: STARTING_BALANCE,
     open: async (o) => {
-      open({ ...o });
-      return null;
+      if (o.type === "limit") return { ok: false, error: "Sign in to place limit orders" };
+      const err = checkTpSl(o.side, o.entryPx, o.tpPx, o.slPx);
+      if (err) return { ok: false, error: err };
+      sim.open({
+        coin: o.coin,
+        side: o.side,
+        sizeUsd: o.sizeUsd,
+        leverage: o.leverage,
+        entryPx: o.entryPx,
+        strategy: o.strategy,
+        rationale: o.rationale,
+        entryFeatures: o.entryFeatures,
+        tpPx: o.tpPx,
+        slPx: o.slPx,
+      });
+      return { ok: true, filled: true };
     },
     close: async (p, px) => {
-      close(p.id, px);
+      sim.close(p.id, px);
       return null;
     },
-    liquidated: (p, px) => close(p.id, px, true),
-    reset: async () => reset(),
+    cancel: async () => null,
+    setTpSl: async (p, tpPx, slPx, px) => {
+      const err = checkTpSl(p.side, px, tpPx, slPx, "the current price");
+      if (err) return err;
+      sim.setTpSl(p.id, tpPx, slPx);
+      return null;
+    },
+    fire: (p, hit) => sim.close(p.id, hit.px, hit.reason),
+    poke: () => {},
+    reset: async () => sim.reset(),
   };
 }
 
