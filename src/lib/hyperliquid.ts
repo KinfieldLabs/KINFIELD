@@ -99,3 +99,16 @@ export async function fetchCandles(coin: Coin, interval: Interval, count = 300):
   });
   return raw.map((k) => ({ t: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c, v: +k.v }));
 }
+
+/**
+ * Up to `count` candles that open before `before` (ms). Hyperliquid keeps roughly the
+ * latest 5000 candles per interval, so this returns [] once that history runs out.
+ */
+export async function fetchCandlesBefore(coin: Coin, interval: Interval, before: number, count: number): Promise<Candle[]> {
+  const startTime = before - INTERVAL_MS[interval] * count;
+  const raw = await info<{ t: number; o: string; h: string; l: string; c: string; v: string }[]>({
+    type: "candleSnapshot",
+    req: { coin, interval, startTime, endTime: before - 1 },
+  });
+  return raw.map((k) => ({ t: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c, v: +k.v })).filter((c) => c.t < before);
+}

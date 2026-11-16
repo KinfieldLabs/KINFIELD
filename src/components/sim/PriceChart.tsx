@@ -19,7 +19,7 @@ import {
 } from "lightweight-charts";
 import { fmtCompact, fmtPct, fmtPxAt, pxDecimals, tone } from "@/lib/format";
 import { useHl } from "@/lib/hl-socket";
-import { fetchCandles, INTERVAL_MS, INTERVALS, type Candle, type Interval } from "@/lib/hyperliquid";
+import { fetchCandles, fetchCandlesBefore, INTERVAL_MS, INTERVALS, type Candle, type Interval } from "@/lib/hyperliquid";
 import { liquidationPx, type ClosedTrade, type Order, type Position } from "@/lib/sim";
 
 interface Props {
@@ -44,6 +44,12 @@ const toVol = (c: Candle) => ({
   color: c.c >= c.o ? "rgba(47,214,160,0.28)" : "rgba(255,107,125,0.28)",
 });
 
+/** Candles loaded when a market or interval opens; older ones load as you scroll back. */
+const INITIAL_BARS = 1500;
+const OLDER_CHUNK = 1500;
+/** Candles in view when a chart opens. */
+const VIEW_BARS = 160;
+
 const REASON: Record<string, string> = { take_profit: "TP", stop_loss: "SL", liquidation: "LIQ", manual: "" };
 
 export function PriceChart({ coin, interval, onInterval, positions, orders, history }: Props) {
@@ -56,6 +62,9 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const bars = useRef<Candle[]>([]);
   const loaded = useRef<string | null>(null);
   const hovering = useRef(false);
+  const older = useRef({ loading: false, done: false });
+  const [depth, setDepth] = useState(0);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [legend, setLegend] = useState<Candle | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -74,7 +83,16 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
       },
       grid: { vertLines: { color: "rgba(120,170,255,0.06)" }, horzLines: { color: "rgba(120,170,255,0.06)" } },
       rightPriceScale: { borderColor: "rgba(120,170,255,0.14)", scaleMargins: { top: 0.08, bottom: 0.22 } },
-      timeScale: { borderColor: "rgba(120,170,255,0.14)", timeVisible: true, secondsVisible: false, rightOffset: 6 },
+      timeScale: {
+        borderColor: "rgba(120,170,255,0.14)",
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 6,
+        // Never scroll or zoom out past the oldest candle into empty space
+        fixLeftEdge: true,
+        // Zoom around the latest candle, not the cursor, so the future doesn't open up as a gap
+        rightBarStaysOnScroll: true,
+      },
       crosshair: {
         vertLine: { color: "rgba(63,200,240,0.4)", labelBackgroundColor: "#0c2f85" },
         horzLine: { color: "rgba(63,200,240,0.4)", labelBackgroundColor: "#0c2f85" },
@@ -90,6 +108,41 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     volume.current = c.addSeries(HistogramSeries, { priceScaleId: "", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
     volume.current.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     markers.current = createSeriesMarkers(candles.current, []);
+
+    // Scrolling or zooming out near the oldest candle loads the history before it
+    const loadOlder = async () => {
+      const st = older.current;
+      const key = loaded.current;
+      if (!key || st.loading || st.done || !bars.current.length) return;
+      st.loading = true;
+      setLoadingOlder(true);
+      const [k, iv] = key.split(":") as [string, Interval];
+      const first = bars.current[0].t;
+      try {
+        const data = await fetchCandlesBefore(k, iv, first, OLDER_CHUNK);
+        if (loaded.current !== key || !candles.current || !volume.current) return;
+        if (!data.length) {
+          st.done = true;
+          return;
+        }
+        const ts = c.timeScale();
+        const range = ts.getVisibleLogicalRange();
+        bars.current = [...data, ...bars.current];
+        candles.current.setData(bars.current.map(toBar));
+        volume.current.setData(bars.current.map(toVol));
+        // Keep the same candles in view after the indexes shift
+        if (range) ts.setVisibleLogicalRange({ from: range.from + data.length, to: range.to + data.length });
+        setDepth(bars.current.length);
+      } catch {
+        // try again on the next scroll
+      } finally {
+        st.loading = false;
+        setLoadingOlder(false);
+      }
+    };
+    c.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+      if (r && r.from < 60) loadOlder();
+    });
     c.subscribeCrosshairMove((param) => {
       const d = param.time && candles.current ? param.seriesData.get(candles.current) : undefined;
       hovering.current = !!d;
@@ -113,12 +166,13 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     let alive = true;
     const key = `${coin}:${interval}`;
     loaded.current = null;
+    older.current = { loading: false, done: false };
     setLoading(true);
     setFailed(false);
     bars.current = [];
     candles.current?.setData([]);
     volume.current?.setData([]);
-    fetchCandles(coin, interval, 500)
+    fetchCandles(coin, interval, INITIAL_BARS)
       .then((data) => {
         if (!alive || !candles.current || !volume.current) return;
         const d = pxDecimals(data.at(-1)?.c ?? 1);
@@ -126,8 +180,10 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         bars.current = data;
         candles.current.setData(data.map(toBar));
         volume.current.setData(data.map(toVol));
-        chart.current?.timeScale().scrollToRealTime();
+        // Open on the latest candles at a readable zoom, whatever the last chart's zoom was
+        chart.current?.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.length - VIEW_BARS), to: data.length + 6 });
         loaded.current = key;
+        setDepth(data.length);
         setLegend(data.at(-1) ?? null);
         setLoading(false);
       })
@@ -203,7 +259,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     }
     list.sort((a, b) => (a.time as number) - (b.time as number));
     markers.current.setMarkers(list);
-  }, [history, positions, interval, loading]);
+  }, [history, positions, interval, loading, depth]);
 
   const ref = legend?.c ?? 1;
   const chg = legend ? legend.c / legend.o - 1 : 0;
@@ -251,6 +307,11 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
             </span>
             <span className={tone(chg)}>{fmtPct(chg)}</span>
             <span>Vol {fmtCompact(legend.v * legend.c)}</span>
+          </div>
+        )}
+        {loadingOlder && (
+          <div className="pointer-events-none absolute bottom-8 left-2 z-10 rounded-md border border-line bg-navy-900/90 px-2 py-1 font-mono text-[10px] text-muted">
+            Loading earlier candles…
           </div>
         )}
         {(loading || failed) && (
