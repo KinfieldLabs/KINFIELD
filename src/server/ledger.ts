@@ -117,6 +117,7 @@ function toPosition(r: Row): Position {
     entryFee: r.entry_fee ?? undefined,
     tpPx: r.tp_px,
     slPx: r.sl_px,
+    agentP: r.agent_p ?? null,
   };
 }
 
@@ -150,15 +151,20 @@ function toOrder(r: Row): Order {
 
 // ---------- accounts ----------
 
-async function activeAccount(userId: string): Promise<Row> {
+/** "human": the person's own account. "agent": the account their apprentice trades on its own. */
+export type AccountKind = "human" | "agent";
+
+export async function activeAccount(userId: string, kind: AccountKind = "human"): Promise<Row> {
   const sql = db();
-  const [a] = await sql`select * from sim_accounts where user_id = ${userId} and archived_at is null`;
+  const find = () => sql`select * from sim_accounts where user_id = ${userId} and kind = ${kind} and archived_at is null`;
+  const [a] = await find();
   if (a) return a;
   const [created] = await sql`
-    insert into sim_accounts (user_id, starting_balance, cash) values (${userId}, ${STARTING_BALANCE}, ${STARTING_BALANCE})
+    insert into sim_accounts (user_id, kind, starting_balance, cash)
+    values (${userId}, ${kind}, ${STARTING_BALANCE}, ${STARTING_BALANCE})
     on conflict do nothing returning *`;
   if (created) return created;
-  const [again] = await sql`select * from sim_accounts where user_id = ${userId} and archived_at is null`;
+  const [again] = await find();
   return again;
 }
 
@@ -229,7 +235,7 @@ const lastSweep = new Map<string, number>();
  * every read and before every action, so the record is right even for time when
  * nobody had the page open.
  */
-async function sweep(accountId: string, force = false) {
+export async function sweep(accountId: string, force = false) {
   const now = Date.now();
   if (!force && now - (lastSweep.get(accountId) ?? 0) < 3000) return;
   lastSweep.set(accountId, now);
@@ -448,8 +454,12 @@ export function parseOrder(body: unknown): OrderInput {
   };
 }
 
-export async function placeOrder(userId: string, o: OrderInput): Promise<{ position?: Position; order?: Order }> {
-  const acct = await activeAccount(userId);
+export async function placeOrder(
+  userId: string,
+  o: OrderInput,
+  opts: { kind?: AccountKind; agentP?: number } = {},
+): Promise<{ position?: Position; order?: Order }> {
+  const acct = await activeAccount(userId, opts.kind ?? "human");
   await sweep(acct.id, true);
 
   const [live, maxLev, minuteBars] = await Promise.all([
@@ -507,9 +517,9 @@ export async function placeOrder(userId: string, o: OrderInput): Promise<{ posit
     if (o.sizeUsd / lev + fee > free) throw new LedgerError("Not enough free margin");
     const [r] = await tx`
       insert into positions (account_id, coin, side, size_usd, leverage, entry_px, strategy, rationale, rationale_salt,
-                             entry_features, entry_fee, tp_px, sl_px)
+                             entry_features, entry_fee, tp_px, sl_px, agent_p)
       values (${acct.id}, ${o.coin}, ${o.side}, ${o.sizeUsd}, ${lev}, ${px}, ${o.strategy}, ${o.rationale}, ${salt},
-              ${featuresJson}, ${fee}, ${o.tpPx}, ${o.slPx})
+              ${featuresJson}, ${fee}, ${o.tpPx}, ${o.slPx}, ${opts.agentP ?? null})
       returning *`;
     await tx`update sim_accounts set cash = cash - ${fee} where id = ${acct.id}`;
     const p = toPosition(r);
@@ -526,6 +536,7 @@ export async function placeOrder(userId: string, o: OrderInput): Promise<{ posit
       features,
       tp_px: p.tpPx ?? undefined,
       sl_px: p.slPx ?? undefined,
+      agent_p: opts.agentP,
     });
     return { position: p };
   });
@@ -571,8 +582,12 @@ export async function setTpSl(userId: string, positionId: string, body: unknown)
   });
 }
 
-export async function closePosition(userId: string, positionId: string): Promise<ClosedTrade> {
-  const acct = await activeAccount(userId);
+export async function closePosition(
+  userId: string,
+  positionId: string,
+  opts: { kind?: AccountKind; reason?: "manual" | "time_stop" } = {},
+): Promise<ClosedTrade> {
+  const acct = await activeAccount(userId, opts.kind ?? "human");
   await sweep(acct.id, true);
   const [r] = await db()`select coin from positions where id = ${positionId} and account_id = ${acct.id} and closed_at is null`;
   if (!r) throw new LedgerError("position is not open (it may have hit a trigger)", 404);
@@ -580,13 +595,13 @@ export async function closePosition(userId: string, positionId: string): Promise
   if (!px) throw new LedgerError("no price for this market right now", 503);
   const closed = await db().begin(async (tx) => {
     await lockAccount(tx, acct.id);
-    return settle(tx, acct.id, positionId, px, Date.now(), "manual");
+    return settle(tx, acct.id, positionId, px, Date.now(), opts.reason ?? "manual");
   });
   if (!closed) throw new LedgerError("position is not open", 404);
   return closed;
 }
 
-/** Archives the active account (its ledger is kept) and starts a fresh one. */
+/** Archives the person's active account (its ledger is kept) and starts a fresh one. */
 export async function resetAccount(userId: string) {
-  await db()`update sim_accounts set archived_at = now() where user_id = ${userId} and archived_at is null`;
+  await db()`update sim_accounts set archived_at = now() where user_id = ${userId} and kind = 'human' and archived_at is null`;
 }

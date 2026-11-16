@@ -1,27 +1,18 @@
-import { timingSafeEqual } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
+import { cronAuthorized } from "@/server/cron";
 import { publishDataset } from "@/server/publish";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-
-/** Constant-time check of the cron secret Vercel sends as a bearer token. */
-function authorized(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const got = Buffer.from(req.headers.get("authorization") ?? "");
-  const want = Buffer.from(`Bearer ${secret}`);
-  return got.length === want.length && timingSafeEqual(got, want);
-}
 
 /**
  * Nightly publish of the open dataset (scheduled in vercel.json).
  * Locally, ?dry=1 writes the dataset to a folder instead of GitHub.
  */
 export async function GET(req: NextRequest) {
-  if (!authorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!cronAuthorized(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const dry = req.nextUrl.searchParams.get("dry") === "1";
   if (dry && process.env.NODE_ENV === "production")
     return NextResponse.json({ error: "dry runs are for local development" }, { status: 400 });

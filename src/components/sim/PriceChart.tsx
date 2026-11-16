@@ -73,7 +73,7 @@ const OLDER_CHUNK = 1500;
 /** Candles in view when a chart opens. */
 const VIEW_BARS = 160;
 
-const REASON: Record<string, string> = { take_profit: "TP", stop_loss: "SL", liquidation: "LIQ", manual: "" };
+const REASON: Record<string, string> = { take_profit: "TP", stop_loss: "SL", liquidation: "LIQ", time_stop: "T", manual: "" };
 
 export function PriceChart({ coin, interval, onInterval, positions, orders, history }: Props) {
   const el = useRef<HTMLDivElement>(null);

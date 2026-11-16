@@ -56,6 +56,15 @@ and win rate (55%, one signal among the others). Every account, including archiv
 The checks live in `src/lib/readiness.ts` and are published with each account in the open dataset.
 Real-capital funding is not offered.
 
+## The agent trading on its own
+
+Once a person has closed 30 trades with market context, their apprentice trades its own simulated
+account (`/api/cron/agents`, every 15 minutes, in `vercel.json`). Each run it retrains daily on the person's
+trades, closes positions held over 24 hours, and in their three most-traded markets acts only at 60%
+confidence or more, risking 1% of its account (capped at 1x equity per position) with a volatility-scaled
+stop and a target twice as far. Its trades go through the same verified ledger, get their own readiness
+checks on `/agent`, and are published as `autonomous.jsonl`. Rules live in `src/server/autonomous.ts`.
+
 ## Open dataset
 
 Users who choose to share (asked once after sign-in; nothing is published before that) are

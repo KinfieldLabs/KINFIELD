@@ -24,9 +24,11 @@ export interface Position {
   entryFee?: number; // taker for market orders, maker for filled limit orders
   tpPx?: number | null;
   slPx?: number | null;
+  /** Set on positions the agent opened on its own: its confidence that price would rise. */
+  agentP?: number | null;
 }
 
-export type ExitReason = "manual" | "take_profit" | "stop_loss" | "liquidation";
+export type ExitReason = "manual" | "take_profit" | "stop_loss" | "liquidation" | "time_stop";
 
 export interface Order {
   id: string;

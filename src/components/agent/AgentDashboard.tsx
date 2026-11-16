@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 import { AccountChip } from "@/components/sim/AccountChip";
 import { SharingSettings } from "@/components/sim/DataSharing";
 import { useMe } from "@/lib/account";
-import { fmtDateTime, fmtDuration, fmtPct, fmtUsd, tone } from "@/lib/format";
+import { fmtDateTime, fmtDuration, fmtPct, fmtPxAt, fmtUsd, tone } from "@/lib/format";
 import { READINESS, type Check } from "@/lib/readiness";
 import type { TrackStats } from "@/lib/stats";
 import { EquityChart } from "./EquityChart";
@@ -24,11 +24,43 @@ interface AccountEvaluation {
   ledger: { entries: number; head: string | null };
 }
 
+interface AgentTrade {
+  id: string;
+  coin: string;
+  side: "long" | "short";
+  confidence: number | null;
+  entryPx: number;
+  exitPx: number | null;
+  slPx: number | null;
+  tpPx: number | null;
+  sizeUsd: number;
+  pnl: number | null;
+  exitReason: string | null;
+  openedAt: number;
+  closedAt: number | null;
+}
+
+interface AutonomousTrial {
+  teaching: number;
+  needed: number;
+  paused: boolean;
+  status: "learning" | "trading" | "paused";
+  model: { samples: number; accuracy: number; trainedAt: number } | null;
+  startedAt: number | null;
+  lastRunAt: number | null;
+  lastNote: string | null;
+  rules: { confidence: number; riskPerTrade: number; rewardToRisk: number; maxHoldHours: number; markets: number };
+  account: AccountEvaluation | null;
+  open: AgentTrade[];
+  trades: AgentTrade[];
+}
+
 interface Evaluation {
   agentId: string;
   publishing: boolean;
   datasetRepo: string;
   accounts: AccountEvaluation[];
+  autonomous: AutonomousTrial;
 }
 
 export function AgentDashboard() {
@@ -90,7 +122,7 @@ export function AgentDashboard() {
         ) : !data ? (
           <p className="py-20 text-center text-sm text-muted">Reading your verified record…</p>
         ) : (
-          <Report data={data} />
+          <Report data={data} reload={load} />
         )}
       </main>
     </div>
@@ -115,7 +147,7 @@ function SignedOut({ available }: { available: boolean }) {
   );
 }
 
-function Report({ data }: { data: Evaluation }) {
+function Report({ data, reload }: { data: Evaluation; reload: () => void }) {
   const active = data.accounts.find((a) => a.status === "active") ?? data.accounts[0];
   if (!active) return null;
   const r = active.readiness;
@@ -125,7 +157,7 @@ function Report({ data }: { data: Evaluation }) {
     <>
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.08em] text-muted">Your agent</p>
+          <p className="text-xs uppercase tracking-[0.08em] text-muted">Your record, as its teacher</p>
           <h1 className="num mt-1 text-2xl text-cream">{data.agentId}</h1>
           <p className="mt-1 text-sm text-mist">
             Judged on the verified ledger of your current account, opened {fmtDateTime(active.createdAt)}.
@@ -175,6 +207,8 @@ function Report({ data }: { data: Evaluation }) {
       </section>
 
       <Attempts accounts={data.accounts} />
+
+      <Autonomous a={data.autonomous} reload={reload} />
 
       <section className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
         <span>
@@ -353,5 +387,196 @@ function Attempts({ accounts }: { accounts: AccountEvaluation[] }) {
         </table>
       </div>
     </section>
+  );
+}
+
+const pctOf = (n: number) => `${Math.round(n * 100)}%`;
+const REASON_LABEL: Record<string, string> = {
+  manual: "Closed",
+  take_profit: "Take profit",
+  stop_loss: "Stop loss",
+  liquidation: "Liquidated",
+  time_stop: "Time limit",
+};
+
+/** The apprentice trading on its own account, judged by the same checks. */
+function Autonomous({ a, reload }: { a: AutonomousTrial; reload: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    setBusy(true);
+    await fetch("/api/agent/control", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ paused: !a.paused }),
+    });
+    setBusy(false);
+    reload();
+  };
+  const r = a.rules;
+  const acct = a.account;
+
+  return (
+    <section className="tpanel flex flex-col gap-4 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <h2 className="text-lg tracking-[-0.01em]">Trading on its own</h2>
+          <p className="mt-1 text-sm leading-relaxed text-mist">
+            Your apprentice trades its own simulated account, with no one placing its orders. Every 15 minutes it looks
+            at your {r.markets} most-traded markets and acts only when it is at least {pctOf(r.confidence)} confident,
+            risking {pctOf(r.riskPerTrade)} of its account with a stop loss and a target {r.rewardToRisk}x as far away.
+            Positions close after {r.maxHoldHours} hours at the latest.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {a.status === "learning" ? (
+            <span className="flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-sm text-muted">
+              <Icon kind="todo" /> Learning from you
+            </span>
+          ) : a.status === "paused" ? (
+            <span className="flex items-center gap-2 rounded-full border border-[rgba(255,180,80,0.5)] px-3 py-1.5 text-sm text-[rgb(255,180,80)]">
+              <Icon kind="todo" /> Paused
+            </span>
+          ) : (
+            <span className="flex items-center gap-2 rounded-full border border-cyan/50 bg-cyan/10 px-3 py-1.5 text-sm text-cyan">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan shadow-[0_0_8px_var(--cyan)]" /> Trading
+            </span>
+          )}
+          {a.teaching >= a.needed && (
+            <button
+              onClick={toggle}
+              disabled={busy}
+              className="rounded-md border border-line px-3 py-1.5 text-xs text-mist hover:border-cyan/50 hover:text-cream disabled:opacity-50"
+            >
+              {a.paused ? "Resume" : "Pause"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {a.teaching < a.needed ? (
+        <div className="rounded-xl border border-line bg-navy-950/30 p-4">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-mist">Closed trades it can learn from</span>
+            <span className="num text-cream">
+              {a.teaching} of {a.needed}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cyan/15" role="meter" aria-label="Teaching progress" aria-valuemin={0} aria-valuemax={a.needed} aria-valuenow={a.teaching}>
+            <div className="h-full rounded-full bg-cyan" style={{ width: `${Math.min(a.teaching / a.needed, 1) * 100}%` }} />
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            It starts trading on its own once you have closed {a.needed} trades. {a.needed - a.teaching} to go.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-3 text-xs text-muted sm:grid-cols-3">
+          <Fact label="Model">
+            {a.model ? `Trained on ${a.model.samples} of your trades, retrained daily` : "Trains on the next run"}
+          </Fact>
+          <Fact label="Trading since">{a.startedAt ? fmtDateTime(a.startedAt) : "Its first confident signal"}</Fact>
+          <Fact label="Last run">
+            {a.lastRunAt ? `${fmtDateTime(a.lastRunAt)}: ${a.lastNote ?? ""}` : "Within 15 minutes"}
+          </Fact>
+        </div>
+      )}
+
+      {acct && (
+        <>
+          <div>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-sm font-semibold">Its readiness, on its own trades</h3>
+              <span className="text-sm text-mist">
+                <span className="num text-cream">{acct.readiness.passed}</span> of {acct.readiness.total} met · day{" "}
+                {acct.readiness.day}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {acct.readiness.checks.map((c) => (
+                <CheckCard key={c.id} c={c} />
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="flex h-[300px] flex-col overflow-hidden rounded-xl border border-line">
+              <div className="border-b border-line px-4 py-2.5 text-sm font-semibold">Its closed-trade equity</div>
+              {acct.stats.trades ? (
+                <EquityChart points={acct.equity} startingBalance={acct.startingBalance} until={Date.now()} />
+              ) : (
+                <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted">
+                  Its equity curve starts with its first closed trade.
+                </div>
+              )}
+            </div>
+            <Stats s={acct.stats} open={a.open.length} />
+          </div>
+          <AgentTrades title={`Open positions (${a.open.length})`} rows={a.open} empty="No open positions right now." />
+          <AgentTrades title={`Its trades (${acct.stats.trades})`} rows={a.trades} empty="No closed trades yet." />
+        </>
+      )}
+    </section>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-line bg-navy-950/30 p-3">
+      <div className="text-[11px] uppercase tracking-[0.06em] text-muted">{label}</div>
+      <div className="mt-1 leading-relaxed text-mist">{children}</div>
+    </div>
+  );
+}
+
+function AgentTrades({ title, rows, empty }: { title: string; rows: AgentTrade[]; empty: string }) {
+  const closed = rows.some((r) => r.closedAt);
+  return (
+    <div className="overflow-hidden rounded-xl border border-line">
+      <div className="border-b border-line px-4 py-2.5 text-sm font-semibold">{title}</div>
+      {!rows.length ? (
+        <p className="px-4 py-4 text-xs text-muted">{empty}</p>
+      ) : (
+        <div className="overflow-x-auto scroll-thin">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-muted">
+                {[closed ? "Closed" : "Opened", "Market", "Confidence", "Size", "Entry", closed ? "Exit" : "Stop / target", closed ? "P&L" : "", closed ? "Ended by" : ""]
+                  .filter(Boolean)
+                  .map((h) => (
+                    <th key={h} className="whitespace-nowrap px-4 py-2 font-normal">
+                      {h}
+                    </th>
+                  ))}
+              </tr>
+            </thead>
+            <tbody className="num">
+              {rows.map((t) => (
+                <tr key={t.id} className="border-t border-line/60">
+                  <td className="whitespace-nowrap px-4 py-2 text-muted">{fmtDateTime(t.closedAt ?? t.openedAt)}</td>
+                  <td className="whitespace-nowrap px-4 py-2 font-sans">
+                    <span className={t.side === "long" ? "text-long" : "text-short"}>{t.side === "long" ? "▲" : "▼"}</span>{" "}
+                    {t.coin} <span className="text-muted">{t.side}</span>
+                  </td>
+                  <td className="px-4 py-2">{t.confidence == null ? "N/A" : pctOf(t.confidence)}</td>
+                  <td className="px-4 py-2">{fmtUsd(t.sizeUsd)}</td>
+                  <td className="px-4 py-2">{fmtPxAt(t.entryPx, t.entryPx)}</td>
+                  {t.closedAt ? (
+                    <>
+                      <td className="px-4 py-2">{t.exitPx != null ? fmtPxAt(t.exitPx, t.entryPx) : "N/A"}</td>
+                      <td className={`px-4 py-2 ${tone(t.pnl ?? 0)}`}>{fmtUsd(t.pnl ?? 0, true)}</td>
+                      <td className="px-4 py-2 font-sans text-mist">{REASON_LABEL[t.exitReason ?? "manual"] ?? t.exitReason}</td>
+                    </>
+                  ) : (
+                    <td className="px-4 py-2">
+                      <span className="text-short">{t.slPx != null ? fmtPxAt(t.slPx, t.entryPx) : "None"}</span>
+                      <span className="text-muted"> / </span>
+                      <span className="text-long">{t.tpPx != null ? fmtPxAt(t.tpPx, t.entryPx) : "None"}</span>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

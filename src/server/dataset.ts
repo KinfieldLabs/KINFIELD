@@ -75,7 +75,7 @@ function publicStats(s: TrackStats) {
   };
 }
 
-function tradeRecord(p: Row, shareReason: boolean) {
+function tradeRecord(p: Row, shareReason: boolean, byAgent = false) {
   const hasReason = !!p.rationale;
   const commitment = p.rationale_salt
     ? reasonCommitment(p.rationale_salt, p.rationale)
@@ -84,6 +84,8 @@ function tradeRecord(p: Row, shareReason: boolean) {
     position_id: p.id,
     account_id: p.account_id,
     order_id: p.order_id ?? null,
+    decided_by: byAgent ? "agent" : "human",
+    ...(byAgent && p.agent_p != null ? { agent_p_long: p.agent_p } : {}),
     market: p.coin,
     type: p.order_id ? "limit" : "market",
     opened_at: iso(p.opened_at),
@@ -101,7 +103,8 @@ function tradeRecord(p: Row, shareReason: boolean) {
     intent: {
       strategy: p.strategy,
       // The written reason is private unless its owner chose to share reasons
-      ...(shareReason && hasReason ? { reason: p.rationale, reason_salt: p.rationale_salt ?? undefined } : {}),
+      // The agent's own notes are machine text, always published; a person's reasons only if they chose to
+      ...((shareReason || byAgent) && hasReason ? { reason: p.rationale, reason_salt: p.rationale_salt ?? undefined } : {}),
       reason_commitment: commitment,
     },
     outcome: {
@@ -127,7 +130,7 @@ async function buildAgent(sql: postgres.Sql, u: Row): Promise<AgentBuild | null>
     const ledger = await sql`select kind, payload, prev_hash, hash, created_at from ledger where account_id = ${a.id} order by seq`;
     if (!ledger.length) continue;
     const closed = await sql`select * from positions where account_id = ${a.id} and closed_at is not null order by closed_at, id`;
-    allTrades.push(...closed);
+    allTrades.push(...closed.map((t) => Object.assign(t, { _byAgent: a.kind === "agent" })));
     lastEntryAt = Math.max(lastEntryAt, ms(ledger[ledger.length - 1].created_at));
     const file = `ledger/${a.id}.jsonl`;
     files.set(
@@ -143,6 +146,7 @@ async function buildAgent(sql: postgres.Sql, u: Row): Promise<AgentBuild | null>
     const r = readiness(accountStats, ms(a.created_at), asOf);
     summaries.push({
       account_id: a.id,
+      kind: a.kind,
       status: a.archived_at ? "archived" : "active",
       created_at: iso(a.created_at),
       archived_at: iso(a.archived_at),
@@ -161,12 +165,17 @@ async function buildAgent(sql: postgres.Sql, u: Row): Promise<AgentBuild | null>
   if (!summaries.length) return null;
 
   allTrades.sort((x, y) => ms(x.closed_at) - ms(y.closed_at) || String(x.id).localeCompare(String(y.id)));
-  files.set(`${base}/trades.jsonl`, jsonl(allTrades.map((t) => tradeRecord(t, u.publish_rationale))));
+  const taught = allTrades.filter((t) => !t._byAgent);
+  const autonomous = allTrades.filter((t) => t._byAgent);
+  files.set(`${base}/trades.jsonl`, jsonl(taught.map((t) => tradeRecord(t, u.publish_rationale))));
+  if (autonomous.length) files.set(`${base}/autonomous.jsonl`, jsonl(autonomous.map((t) => tradeRecord(t, false, true))));
 
-  const lifetime = trackStats(
-    allTrades.map((t) => ({ pnl: t.pnl, openedAt: ms(t.opened_at), closedAt: ms(t.closed_at) })),
-    STARTING_BALANCE,
-  );
+  const statsOf = (rows: Row[]) =>
+    trackStats(
+      rows.map((t) => ({ pnl: t.pnl, openedAt: ms(t.opened_at), closedAt: ms(t.closed_at) })),
+      STARTING_BALANCE,
+    );
+  const lifetime = statsOf(taught);
   const github = u.show_login ? u.login : null;
   files.set(
     `${base}/summary.json`,
@@ -177,6 +186,7 @@ async function buildAgent(sql: postgres.Sql, u: Row): Promise<AgentBuild | null>
         shares_reasons: u.publish_rationale,
         updated_at: new Date(lastEntryAt).toISOString(),
         lifetime: publicStats(lifetime),
+        autonomous: autonomous.length ? publicStats(statsOf(autonomous)) : null,
         accounts: summaries,
       },
       null,
@@ -249,7 +259,8 @@ All trading here is simulated. No real funds are involved. Nothing in this repos
 |---|---|
 | \`agents.json\` | One row per agent, with headline stats |
 | \`agents/<agent>/summary.json\` | Stats for each simulated account, and each account's ledger length and head hash |
-| \`agents/<agent>/trades.jsonl\` | Every closed trade, one JSON object per line |
+| \`agents/<agent>/trades.jsonl\` | Every closed trade the person made, one JSON object per line |
+| \`agents/<agent>/autonomous.jsonl\` | Trades the agent made on its own account, after learning from that person |
 | \`agents/<agent>/ledger/<account>.jsonl\` | The hash-chained record every trade is checked against |
 | \`verify.mjs\` | Checks all of the above, with no dependencies |
 

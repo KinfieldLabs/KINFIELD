@@ -42,6 +42,7 @@ const REASONS: Record<ExitReason, { label: string; cls: string }> = {
   take_profit: { label: "Take profit", cls: "text-long border-long/40" },
   stop_loss: { label: "Stop loss", cls: "text-short border-short/40" },
   liquidation: { label: "Liquidated", cls: "text-[rgb(255,180,80)] border-[rgba(255,180,80,0.4)]" },
+  time_stop: { label: "Time limit", cls: "text-mist border-line" },
 };
 
 export function Blotter(props: Props) {

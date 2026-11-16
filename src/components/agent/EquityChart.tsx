@@ -6,6 +6,7 @@ import {
   ColorType,
   createChart,
   LineStyle,
+  TickMarkType,
   type AreaData,
   type IChartApi,
   type ISeriesApi,
@@ -22,9 +23,18 @@ interface Props {
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Local time, like the tables on the same page
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 const dateLabel = (t: Time) => {
   const d = new Date((t as number) * 1000);
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${hhmm(d)}`;
+};
+const tickLabel = (t: Time, type: TickMarkType) => {
+  const d = new Date((t as number) * 1000);
+  if (type === TickMarkType.Year) return String(d.getFullYear());
+  if (type === TickMarkType.Month) return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  if (type === TickMarkType.DayOfMonth) return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return hhmm(d);
 };
 
 /** One series: realized equity after each closed trade. The opening balance is the baseline. */
@@ -47,7 +57,14 @@ export function EquityChart({ points, startingBalance, until }: Props) {
       },
       grid: { vertLines: { visible: false }, horzLines: { color: "rgba(120,170,255,0.06)" } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
-      timeScale: { borderColor: "rgba(120,170,255,0.14)", timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      timeScale: {
+        borderColor: "rgba(120,170,255,0.14)",
+        timeVisible: true,
+        secondsVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        tickMarkFormatter: tickLabel,
+      },
       localization: { timeFormatter: dateLabel },
       crosshair: {
         vertLine: { color: "rgba(63,200,240,0.45)", labelBackgroundColor: "#0c2f85" },
