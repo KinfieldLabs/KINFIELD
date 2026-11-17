@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure";
+export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -17,8 +17,12 @@ export interface Drawing {
   points: Anchor[];
 }
 
-/** How many points each kind of drawing is made of. A horizontal line uses only its point's price, a vertical line only its time. */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2 };
+/**
+ * How many points each kind of drawing is made of. A horizontal line uses only its
+ * point's price, a vertical line only its time. A position is its entry, then its target
+ * and stop, which share the box's right edge.
+ */
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3 };
 
 export const TOOL_NAMES: Record<ToolKind, string> = {
   trend: "Trend line",
@@ -27,6 +31,8 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   fib: "Fib retracement",
   rect: "Rectangle",
   measure: "Measure",
+  long: "Long position",
+  short: "Short position",
 };
 
 /**
@@ -34,6 +40,37 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
  * drawing from a swing low to a swing high measures pullbacks down from the high.
  */
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618];
+
+const isPosition = (k: ToolKind) => k === "long" || k === "short";
+
+/**
+ * A drawing's points while it is placed, from where the press started to the pointer.
+ * A position's entry is the start; the drag sets the target's distance and the box's
+ * end, and the stop mirrors the target, one to one, until it is moved.
+ */
+export function shape(kind: ToolKind, a: Anchor, b: Anchor): Anchor[] {
+  if (isPosition(kind)) {
+    const reach = (kind === "long" ? 1 : -1) * Math.abs(b.p - a.p);
+    return [a, { t: b.t, p: a.p + reach }, { t: b.t, p: a.p - reach }];
+  }
+  return POINTS[kind] === 1 ? [a] : [a, b];
+}
+
+/**
+ * Moves one point of a drawing by its handle. A position's target and stop move its
+ * right edge together and can't cross the entry, which stays between them.
+ */
+export function moveHandle(d: Drawing, i: number, a: Anchor): Anchor[] {
+  if (!isPosition(d.kind)) return d.points.map((p, j) => (j === i ? a : p));
+  const [entry, target, stop] = d.points;
+  const up = d.kind === "long";
+  const [lo, hi] = up ? [stop.p, target.p] : [target.p, stop.p];
+  if (i === 0) return [{ t: a.t, p: Math.min(Math.max(a.p, lo), hi) }, target, stop];
+  const beyond = (p: number, wantAbove: boolean) => (wantAbove ? Math.max(p, entry.p) : Math.min(p, entry.p));
+  return i === 1
+    ? [entry, { t: a.t, p: beyond(a.p, up) }, { t: a.t, p: stop.p }]
+    : [entry, { t: a.t, p: target.p }, { t: a.t, p: beyond(a.p, !up) }];
+}
 
 const MAX = 200;
 const key = (coin: string) => `kinfield.drawings.${coin}`;

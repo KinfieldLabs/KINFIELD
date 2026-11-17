@@ -36,6 +36,18 @@ const ICONS: Record<ToolKind, ReactNode> = {
       <path d="M2.5 8h11" strokeLinecap="round" opacity="0.55" />
     </>
   ),
+  long: (
+    <>
+      <rect x="2" y="2" width="12" height="12" rx="1.5" opacity="0.55" />
+      <path d="M8 11.5V4.5M5.5 7L8 4.5 10.5 7" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  short: (
+    <>
+      <rect x="2" y="2" width="12" height="12" rx="1.5" opacity="0.55" />
+      <path d="M8 4.5v7M5.5 9L8 11.5 10.5 9" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
 };
 
 /** The column of drawing tools down the left of the chart. */

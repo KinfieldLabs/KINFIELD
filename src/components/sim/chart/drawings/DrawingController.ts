@@ -1,6 +1,6 @@
 import type { IChartApi } from "lightweight-charts";
 import type { DrawingLayer } from "./DrawingLayer";
-import { newId, POINTS, type Anchor, type Drawing, type Tool } from "./model";
+import { moveHandle, newId, POINTS, shape, type Anchor, type Drawing, type Tool } from "./model";
 
 interface Hooks {
   tool(): Tool;
@@ -32,8 +32,8 @@ export class DrawingController {
   /** The current press belongs to a drawing. */
   private pressed = false;
   private pressAt: At | null = null;
-  /** Which point of the draft follows the pointer. */
-  private placing = 0;
+  /** Where the drawing being placed started. */
+  private start: Anchor | null = null;
   private drag: { original: Drawing; handle: number | null; from: Anchor; moved: boolean } | null = null;
 
   constructor(
@@ -106,10 +106,9 @@ export class DrawingController {
     this.select(null);
     this.pressed = true;
     this.pressAt = at;
-    const n = POINTS[tool];
-    this.placing = n - 1;
-    this.layer.update({ draft: { id: newId(), kind: tool, points: Array.from({ length: n }, () => ({ ...a })) } });
-    if (n === 1) this.finish();
+    this.start = a;
+    this.layer.update({ draft: { id: newId(), kind: tool, points: shape(tool, a, a) } });
+    if (POINTS[tool] === 1) this.finish();
   };
 
   /** With the cursor: a press on a drawing selects it and starts a drag; anywhere else clears the selection and pans. */
@@ -148,9 +147,7 @@ export class DrawingController {
     const { original: o, handle, from } = drag;
     // A handle moves its point; the line itself moves every point by the same time and price
     const points =
-      handle != null
-        ? o.points.map((p, i) => (i === handle ? a : p))
-        : o.points.map((p) => ({ t: p.t + (a.t - from.t), p: p.p + (a.p - from.p) }));
+      handle != null ? moveHandle(o, handle, a) : o.points.map((p) => ({ t: p.t + (a.t - from.t), p: p.p + (a.p - from.p) }));
     drag.moved = true;
     this.layer.update({ drawings: this.layer.drawings.map((d) => (d.id === o.id ? { ...o, points } : d)) });
   }
@@ -192,7 +189,7 @@ export class DrawingController {
 
   private place(d: Drawing, at: At) {
     const a = this.layer.anchorAt(at.x, at.y);
-    if (a) this.layer.update({ draft: { ...d, points: d.points.map((p, i) => (i === this.placing ? a : p)) } });
+    if (a && this.start) this.layer.update({ draft: { ...d, points: shape(d.kind, this.start, a) } });
   }
 
   private finish() {

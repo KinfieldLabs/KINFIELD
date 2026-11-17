@@ -201,6 +201,16 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         return Math.abs(at[1] - pts[0][1]) <= REACH;
       case "vline":
         return Math.abs(at[0] - pts[0][0]) <= REACH;
+      case "long":
+      case "short": {
+        const ys = pts.map((q) => q[1]);
+        return (
+          at[0] >= Math.min(pts[0][0], pts[1][0]) - REACH &&
+          at[0] <= Math.max(pts[0][0], pts[1][0]) + REACH &&
+          at[1] >= Math.min(...ys) - REACH &&
+          at[1] <= Math.max(...ys) + REACH
+        );
+      }
       case "rect":
       case "measure":
         return (
@@ -286,7 +296,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     });
   }
 
-  private paint(ctx: CanvasRenderingContext2D, d: Drawing, [a, b]: Point[], hot: boolean, size: { width: number; height: number }) {
+  private paint(ctx: CanvasRenderingContext2D, d: Drawing, pts: Point[], hot: boolean, size: { width: number; height: number }) {
+    const [a, b] = pts;
     switch (d.kind) {
       case "hline":
         ctx.strokeStyle = INK;
@@ -310,6 +321,10 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       case "measure":
         this.paintMeasure(ctx, d, a, b, size);
         break;
+      case "long":
+      case "short":
+        this.paintPosition(ctx, d, pts, hot);
+        break;
       case "rect": {
         const x = Math.min(a[0], b[0]);
         const y = Math.min(a[1], b[1]);
@@ -332,6 +347,39 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         ctx.stroke();
         break;
     }
+  }
+
+  /** A long or short position: the target zone in green, the stop zone in red, and the risk to reward at the entry. */
+  private paintPosition(ctx: CanvasRenderingContext2D, d: Drawing, pts: Point[], hot: boolean) {
+    const [entry, target, stop] = d.points;
+    const [[x1, yE], [x2, yT], [, yS]] = pts;
+    const left = Math.min(x1, x2);
+    const w = Math.abs(x2 - x1);
+    ctx.fillStyle = "rgba(47, 214, 160, 0.16)";
+    ctx.fillRect(left, Math.min(yE, yT), w, Math.abs(yT - yE));
+    ctx.fillStyle = "rgba(255, 107, 125, 0.16)";
+    ctx.fillRect(left, Math.min(yE, yS), w, Math.abs(yS - yE));
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = hot ? 1.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(left, yE);
+    ctx.lineTo(left + w, yE);
+    ctx.stroke();
+
+    const fmt = (p: number) => this.series?.priceFormatter().format(p) ?? p.toFixed(2);
+    const pct = (p: number) => {
+      const v = ((p - entry.p) / entry.p) * 100;
+      return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+    };
+    const risk = Math.abs(entry.p - stop.p);
+    const rr = risk > 0 ? Math.abs(target.p - entry.p) / risk : 0;
+    const cx = left + w / 2;
+    // Target and stop labels sit inside their zones, by the far edge
+    const inside = (y: number, from: number) => y + (from > y ? 11 : -11);
+    ctx.font = `11px ${monoFont()}`;
+    pill(ctx, `Target ${fmt(target.p)} (${pct(target.p)})`, cx, inside(yT, yE), "#2fd6a0");
+    pill(ctx, `Stop ${fmt(stop.p)} (${pct(stop.p)})`, cx, inside(yS, yE), "#ff6b7d");
+    pill(ctx, `${d.kind === "long" ? "Long" : "Short"} ${fmt(entry.p)}, risk/reward ${rr.toFixed(2)}`, cx, yE, INK);
   }
 
   /** A box from one point to the other, green when price rose and red when it fell, with the move, the candles and the time it took. */
@@ -437,6 +485,19 @@ function axisLabel(get: () => { at: number | null; text: string } | null): ISeri
     backColor: () => INK,
     visible: () => get()?.at != null,
   };
+}
+
+/** A small label on a dark rounded backing, centered on a point. */
+function pill(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, color: string) {
+  const w = ctx.measureText(text).width + 12;
+  ctx.fillStyle = "rgba(1, 21, 77, 0.88)";
+  ctx.beginPath();
+  ctx.roundRect(cx - w / 2, cy - 8, w, 16, 4);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, cx, cy + 0.5);
 }
 
 /** A line from one point to another with a small head at the far end. */
