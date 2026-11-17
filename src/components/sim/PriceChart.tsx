@@ -111,7 +111,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
 
   // Drawings: the controller reads the latest tool, drawings and interval through refs
   const [tool, setTool] = useState<Tool>("cursor");
-  const { drawings, save: saveDrawings } = useDrawings(coin);
+  const { drawings, save: saveDrawings, undo, redo, canUndo, canRedo } = useDrawings(coin);
   const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null);
   /** The text note being typed into. */
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -124,9 +124,9 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   }, []);
   const drawLayer = useRef<DrawingLayer | null>(null);
   const drawCtl = useRef<DrawingController | null>(null);
-  const live = useRef({ tool, drawings, saveDrawings, interval });
+  const live = useRef({ tool, drawings, saveDrawings, interval, undo, redo });
   useEffect(() => {
-    live.current = { tool, drawings, saveDrawings, interval };
+    live.current = { tool, drawings, saveDrawings, interval, undo, redo };
   });
   /** Bar under the crosshair, for the legend; null shows the latest. */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -351,6 +351,14 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         if (live.current.tool !== "cursor" && !drawLayer.current?.draft) setTool("cursor");
         return;
       }
+      // Undo with Ctrl or Cmd and Z; redo adds Shift, or is Ctrl and Y
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.code === "KeyZ" || e.code === "KeyY")) {
+        e.preventDefault();
+        drawCtl.current?.cancel();
+        if (e.code === "KeyY" || e.shiftKey) live.current.redo();
+        else live.current.undo();
+        return;
+      }
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
       // By physical key, since Alt changes the character typed on a Mac
       const kind = (Object.keys(SHORTCUTS) as ToolKind[]).find((k) => e.code === `Key${SHORTCUTS[k]}`);
@@ -484,6 +492,17 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         ))}
         <span className="mx-1 h-4 w-px bg-line" aria-hidden />
         <IndicatorMenu onAdd={add} full={full} />
+        <span className="mx-1 h-4 w-px bg-line" aria-hidden />
+        <button onClick={undo} disabled={!canUndo} aria-label="Undo drawing change" title="Undo (Ctrl+Z)" className="rounded-md p-1 text-muted hover:text-cream disabled:opacity-35 disabled:hover:text-muted">
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path d="M5.5 3L2.5 6l3 3M2.5 6H10a3.5 3.5 0 0 1 0 7H7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button onClick={redo} disabled={!canRedo} aria-label="Redo drawing change" title="Redo (Ctrl+Shift+Z)" className="rounded-md p-1 text-muted hover:text-cream disabled:opacity-35 disabled:hover:text-muted">
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path d="M10.5 3l3 3-3 3M13.5 6H6a3.5 3.5 0 0 0 0 7h3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <button
           onClick={toLatest}
           className="ml-auto rounded-md px-2 py-1 text-xs text-muted hover:text-cream"

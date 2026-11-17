@@ -134,9 +134,13 @@ function valid(x: unknown): x is Drawing {
   );
 }
 
-/** The drawings on one market, remembered in this browser. */
+/** How many changes undo can step back through. */
+const HISTORY = 50;
+
+/** The drawings on one market, remembered in this browser, with undo and redo for this visit. */
 export function useDrawings(coin: string) {
   const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [history, setHistory] = useState<{ past: Drawing[][]; future: Drawing[][] }>({ past: [], future: [] });
 
   useEffect(() => {
     let saved: Drawing[] = [];
@@ -145,16 +149,36 @@ export function useDrawings(coin: string) {
       if (Array.isArray(raw)) saved = raw.filter(valid).slice(0, MAX);
     } catch {}
     setDrawings(saved);
+    setHistory({ past: [], future: [] });
   }, [coin]);
 
-  const save = (next: Drawing[]) => {
-    const kept = next.slice(-MAX);
-    setDrawings(kept);
+  const store = (next: Drawing[]) => {
+    setDrawings(next);
     try {
-      if (kept.length) localStorage.setItem(key(coin), JSON.stringify(kept));
+      if (next.length) localStorage.setItem(key(coin), JSON.stringify(next));
       else localStorage.removeItem(key(coin));
     } catch {}
   };
 
-  return { drawings, save };
+  return {
+    drawings,
+    canUndo: history.past.length > 0,
+    canRedo: history.future.length > 0,
+    save(next: Drawing[]) {
+      setHistory({ past: [...history.past, drawings].slice(-HISTORY), future: [] });
+      store(next.slice(-MAX));
+    },
+    undo() {
+      const prev = history.past.at(-1);
+      if (!prev) return;
+      setHistory({ past: history.past.slice(0, -1), future: [drawings, ...history.future] });
+      store(prev);
+    },
+    redo() {
+      const [next, ...rest] = history.future;
+      if (!next) return;
+      setHistory({ past: [...history.past, drawings], future: rest });
+      store(next);
+    },
+  };
 }
