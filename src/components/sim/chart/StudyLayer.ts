@@ -1,7 +1,8 @@
 import { LineSeries, type IChartApi, type ISeriesApi, type LineData, type UTCTimestamp } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
 import type { Line } from "@/lib/indicators";
-import { STUDIES, type Study } from "./studies";
+import { BandFill, withAlpha } from "./BandFill";
+import { slotColor, STUDIES, type Study } from "./studies";
 
 interface Entry {
   study: Study;
@@ -93,13 +94,15 @@ export class StudyLayer {
   }
 
   private build(s: Study): Entry {
+    const def = STUDIES[s.kind];
     const series = new Map<string, ISeriesApi<"Line">>();
-    for (const line of STUDIES[s.kind].lines(s)) {
+    const entry: Entry = { study: s, sig: sigOf(s), series, values: {} };
+    for (const line of def.lines(s)) {
       series.set(
         line.key,
         this.chart.addSeries(LineSeries, {
           color: line.color,
-          lineWidth: 2,
+          lineWidth: line.width ?? 2,
           lineStyle: line.style,
           priceLineVisible: false,
           lastValueVisible: this.lastValueVisible,
@@ -109,7 +112,16 @@ export class StudyLayer {
         }),
       );
     }
-    return { study: s, sig: sigOf(s), series, values: {} };
+    const fill = def.fill;
+    if (fill) {
+      series.get(fill.from)?.attachPrimitive(
+        new BandFill(
+          () => ({ upper: entry.values[fill.from] ?? [], lower: entry.values[fill.to] ?? [] }),
+          withAlpha(slotColor(s.slot), 0.1),
+        ),
+      );
+    }
+    return entry;
   }
 
   private fill(e: Entry, bars: readonly Candle[]) {

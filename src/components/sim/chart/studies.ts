@@ -1,8 +1,8 @@
 import { LineStyle } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
-import { ema, sma, type Line } from "@/lib/indicators";
+import { bollinger, ema, sma, type Line } from "@/lib/indicators";
 
-export type StudyKind = "ma" | "ema";
+export type StudyKind = "ma" | "ema" | "bb";
 
 /** An indicator on the chart. */
 export interface Study {
@@ -28,6 +28,8 @@ export interface StudyLine {
   key: string;
   color: string;
   style: LineStyle;
+  /** Pixels; 2 when left out. */
+  width?: 1 | 2;
 }
 
 export interface StudyDef {
@@ -40,6 +42,8 @@ export interface StudyDef {
   params: StudyParam[];
   lines(s: Study): StudyLine[];
   compute(bars: readonly Candle[], params: readonly number[]): Record<string, Line>;
+  /** Shades the area between two of the lines. */
+  fill?: { from: string; to: string };
 }
 
 /**
@@ -85,6 +89,28 @@ export const STUDIES: Record<StudyKind, StudyDef> = {
     params: [{ label: "Length", value: 20, min: 1, max: 500 }],
     lines: single("ema"),
     compute: (bars, [n]) => ({ ema: ema(closes(bars), n) }),
+  },
+  bb: {
+    kind: "bb",
+    name: "Bollinger Bands",
+    short: "BB",
+    blurb: "Moving average with bands a set number of standard deviations away",
+    group: "Volatility",
+    params: [
+      { label: "Length", value: 20, min: 2, max: 500 },
+      { label: "Standard deviations", value: 2, min: 0.1, max: 10, step: 0.1 },
+    ],
+    lines: (s) => {
+      const color = slotColor(s.slot);
+      const style = slotStyle(s.slot);
+      return [
+        { key: "basis", color, style, width: 1 },
+        { key: "upper", color, style, width: 1 },
+        { key: "lower", color, style, width: 1 },
+      ];
+    },
+    compute: (bars, [n, mult]) => bollinger(closes(bars), n, mult),
+    fill: { from: "upper", to: "lower" },
   },
 };
 

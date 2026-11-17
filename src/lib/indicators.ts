@@ -17,6 +17,28 @@ export function sma(src: readonly number[], n: number): Line {
   return out;
 }
 
+/** Standard deviation of the last n values (population, as TradingView computes it). */
+export function stdev(src: readonly number[], n: number): Line {
+  const mean = sma(src, n);
+  return mean.map((m, i) => {
+    if (m == null) return null;
+    let sum = 0;
+    for (let j = i - n + 1; j <= i; j++) sum += (src[j] - m) ** 2;
+    return Math.sqrt(sum / n);
+  });
+}
+
+/** Bollinger Bands: a moving average with bands `mult` standard deviations above and below. */
+export function bollinger(src: readonly number[], n: number, mult: number) {
+  const basis = sma(src, n);
+  const dev = stdev(src, n);
+  return {
+    basis,
+    upper: basis.map((b, i) => (b == null ? null : b + mult * dev[i]!)),
+    lower: basis.map((b, i) => (b == null ? null : b - mult * dev[i]!)),
+  };
+}
+
 /** Exponential moving average, seeded with the simple average of the first n bars. */
 export function ema(src: readonly number[], n: number): Line {
   const out: Line = new Array(src.length).fill(null);
