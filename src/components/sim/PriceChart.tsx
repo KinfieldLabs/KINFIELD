@@ -117,9 +117,11 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [magnet, setMagnet] = useState(false);
   const [drawingsHidden, setDrawingsHidden] = useState(false);
+  const [drawingsLocked, setDrawingsLocked] = useState(false);
   useEffect(() => {
     try {
       setMagnet(localStorage.getItem("kinfield.magnet") === "1");
+      setDrawingsLocked(localStorage.getItem("kinfield.lockDrawings") === "1");
     } catch {}
   }, []);
   const drawLayer = useRef<DrawingLayer | null>(null);
@@ -334,6 +336,10 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     drawLayer.current?.update({ magnet });
   }, [magnet]);
   useEffect(() => {
+    drawLayer.current?.update({ locked: drawingsLocked, hovered: null });
+    if (drawingsLocked) drawCtl.current?.select(null);
+  }, [drawingsLocked]);
+  useEffect(() => {
     drawLayer.current?.update({ hidden: drawingsHidden, hovered: null });
     if (drawingsHidden) drawCtl.current?.select(null);
   }, [drawingsHidden]);
@@ -529,6 +535,13 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
           }}
           hidden={drawingsHidden}
           onHidden={setDrawingsHidden}
+          locked={drawingsLocked}
+          onLocked={(on) => {
+            setDrawingsLocked(on);
+            try {
+              localStorage.setItem("kinfield.lockDrawings", on ? "1" : "0");
+            } catch {}
+          }}
           count={drawings.length}
           onClear={() => saveDrawings([])}
         />

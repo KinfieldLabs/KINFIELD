@@ -111,6 +111,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   magnet = false;
   /** Drawings stay saved but aren't shown, labelled or picked. */
   hidden = false;
+  /** Drawings show but can't be picked, so they can't be moved or deleted by accident. */
+  locked = false;
 
   private chart: IChartApi | null = null;
   private series: ISeriesApi<SeriesType> | null = null;
@@ -162,7 +164,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return h ? { externalId: h.id, zOrder: "top", cursorStyle: h.handle != null ? "move" : "pointer" } : null;
   }
 
-  update(patch: Partial<Pick<DrawingLayer, "drawings" | "draft" | "selected" | "hovered" | "editable" | "magnet" | "hidden">>) {
+  update(patch: Partial<Pick<DrawingLayer, "drawings" | "draft" | "selected" | "hovered" | "editable" | "magnet" | "hidden" | "locked">>) {
     Object.assign(this, patch);
     this.refreshAxis();
     this.requestUpdate?.();
@@ -225,7 +227,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
 
   /** The drawing under a screen point: the selected drawing's handles first, then the topmost drawing. */
   hit(x: number, y: number): Hit | null {
-    if (this.hidden) return null;
+    if (this.hidden || this.locked) return null;
     const sel = this.drawings.find((d) => d.id === this.selected);
     const selPts = sel && this.screen(sel);
     if (sel && selPts) {
