@@ -4,6 +4,7 @@ import { Logo, Mark } from "@/components/Logo";
 import { HyperliquidMark } from "@/components/HyperliquidMark";
 import { InView, Lines, SmoothScroll } from "@/components/motion";
 import { ConstellationButton } from "@/components/ConstellationButton";
+import { DemoVideo } from "@/components/DemoVideo";
 import { SiteNav } from "@/components/SiteNav";
 
 const steps = [
@@ -72,12 +73,15 @@ function Stage({
   shape,
   side,
   children,
+  aside,
   className = "",
 }: {
   id?: string;
   shape: ShapeName;
   side: "left" | "right";
   children: ReactNode;
+  /** Shown in the empty column over the figure; on phones it follows the text. */
+  aside?: ReactNode;
   className?: string;
 }) {
   return (
@@ -89,7 +93,8 @@ function Stage({
         side === "left" ? "lg:grid-cols-[1fr_1.2fr]" : "lg:grid-cols-[1.2fr_1fr]"
       } ${className}`}
     >
-      {side === "left" && <div aria-hidden className="hidden lg:block" />}
+      {side === "left" &&
+        (aside ? <div className="relative order-last lg:order-none">{aside}</div> : <div aria-hidden className="hidden lg:block" />)}
       <div className="relative">{children}</div>
     </section>
   );
@@ -147,7 +152,21 @@ export default function Home() {
         </section>
 
         {/* How it works: candlesticks */}
-        <Stage id="how" shape="candles" side="left">
+        <Stage
+          id="how"
+          shape="candles"
+          side="left"
+          aside={
+            <InView>
+              <DemoVideo
+                mp4="/demo/simulator.mp4"
+                webm="/demo/simulator.webm"
+                poster="/demo/simulator.jpg"
+                className="reveal"
+              />
+            </InView>
+          }
+        >
           <InView>
             <p className="reveal t-label text-cyan">How it works</p>
           </InView>
