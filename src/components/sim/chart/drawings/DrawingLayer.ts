@@ -191,6 +191,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         return toSegment(at, pts[0], pts[1]) <= REACH;
       case "hline":
         return Math.abs(at[1] - pts[0][1]) <= REACH;
+      case "vline":
+        return Math.abs(at[0] - pts[0][0]) <= REACH;
     }
   }
 
@@ -204,15 +206,17 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   }
 
   /**
-   * Axis labels: every horizontal line's price, plus the prices and times of the active
-   * drawing's points. Rebuilt only when that set changes, as the chart expects.
+   * Axis labels: every horizontal line's price and every vertical line's time, plus the
+   * prices and times of the active drawing's points. Rebuilt only when that set changes,
+   * as the chart expects.
    */
   private refreshAxis() {
     const d = this.active();
     const all = this.draft ? [...this.drawings, this.draft] : this.drawings;
     const hlines = all.filter((x) => x.kind === "hline").map((x) => x.id);
-    const pointed = d && d.kind !== "hline" ? d : null;
-    const key = [pointed ? `${pointed.id}:${pointed.points.length}` : "", ...hlines].join("|");
+    const vlines = all.filter((x) => x.kind === "vline").map((x) => x.id);
+    const pointed = d && d.kind !== "hline" && d.kind !== "vline" ? d : null;
+    const key = [pointed ? `${pointed.id}:${pointed.points.length}` : "", ...hlines, "|", ...vlines].join(",");
     if (key === this.axisKey) return;
     this.axisKey = key;
 
@@ -229,13 +233,16 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     const n = pointed?.points.length ?? 0;
     const point = (i: number) => () => {
       const a = this.active();
-      return a && a.kind !== "hline" ? a.points[i] : undefined;
+      return a && a.kind !== "hline" && a.kind !== "vline" ? a.points[i] : undefined;
     };
     this.priceViews = [
       ...hlines.map((id) => price(() => this.byId(id)?.points[0])),
       ...Array.from({ length: n }, (_, i) => price(point(i))),
     ];
-    this.timeViews = Array.from({ length: n }, (_, i) => time(point(i)));
+    this.timeViews = [
+      ...vlines.map((id) => time(() => this.byId(id)?.points[0])),
+      ...Array.from({ length: n }, (_, i) => time(point(i))),
+    ];
   }
 
   private render(target: Target) {
@@ -247,21 +254,29 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         if (!pts) continue;
         const active = d === this.draft || d.id === this.selected;
         ctx.save();
-        this.paint(ctx, d, pts, active || d.id === this.hovered, mediaSize.width);
+        this.paint(ctx, d, pts, active || d.id === this.hovered, mediaSize);
         if (active) for (const p of pts) handle(ctx, p);
         ctx.restore();
       }
     });
   }
 
-  private paint(ctx: CanvasRenderingContext2D, d: Drawing, [a, b]: Point[], hot: boolean, width: number) {
+  private paint(ctx: CanvasRenderingContext2D, d: Drawing, [a, b]: Point[], hot: boolean, size: { width: number; height: number }) {
     switch (d.kind) {
       case "hline":
         ctx.strokeStyle = INK;
         ctx.lineWidth = hot ? 2 : 1.5;
         ctx.beginPath();
         ctx.moveTo(0, a[1]);
-        ctx.lineTo(width, a[1]);
+        ctx.lineTo(size.width, a[1]);
+        ctx.stroke();
+        break;
+      case "vline":
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = hot ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(a[0], 0);
+        ctx.lineTo(a[0], size.height);
         ctx.stroke();
         break;
       case "trend":
