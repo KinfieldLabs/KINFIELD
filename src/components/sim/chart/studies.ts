@@ -20,6 +20,8 @@ export interface StudyParam {
   value: number;
   min: number;
   max: number;
+  /** Smallest change; whole numbers when left out. */
+  step?: number;
 }
 
 export interface StudyLine {
@@ -45,8 +47,20 @@ export interface StudyDef {
  * surface. Green and red stay with the candles. Past three, the colors repeat dashed.
  */
 const COLORS = ["#c98500", "#9085e9", "#d55181"];
+const COLOR_NAMES = ["Amber", "Violet", "Magenta"];
 export const slotColor = (slot: number) => COLORS[slot % COLORS.length];
 export const slotStyle = (slot: number) => (slot < COLORS.length ? LineStyle.Solid : LineStyle.Dashed);
+export const slotName = (slot: number) =>
+  `${COLOR_NAMES[slot % COLORS.length]}${slot < COLORS.length ? "" : " dashed"}`;
+/** The color choices offered in settings: each color, solid then dashed. */
+export const SLOT_CHOICES = [0, 1, 2, 3, 4, 5];
+
+/** Whether a value fits a parameter's range and step. */
+export function fitsParam(p: StudyParam, v: number): boolean {
+  if (!Number.isFinite(v) || v < p.min || v > p.max) return false;
+  const steps = (v - p.min) / (p.step ?? 1);
+  return Math.abs(steps - Math.round(steps)) < 1e-9;
+}
 
 const closes = (bars: readonly Candle[]) => bars.map((b) => b.c);
 const single = (key: string) => (s: Study) => [{ key, color: slotColor(s.slot), style: slotStyle(s.slot) }];

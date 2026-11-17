@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { STUDIES, type Study, type StudyKind } from "./studies";
+import { fitsParam, STUDIES, type Study, type StudyKind } from "./studies";
 
 const KEY = "kinfield.indicators";
 const MAX = 10;
@@ -17,7 +17,7 @@ function valid(x: unknown): x is Study {
     s.slot >= 0 &&
     Array.isArray(s.params) &&
     s.params.length === def.params.length &&
-    s.params.every((v, i) => Number.isFinite(v) && v >= def.params[i].min && v <= def.params[i].max)
+    s.params.every((v, i) => fitsParam(def.params[i], v))
   );
 }
 
@@ -55,6 +55,9 @@ export function useStudies() {
     },
     toggle(id: string) {
       save(studies.map((s) => (s.id === id ? { ...s, hidden: !s.hidden } : s)));
+    },
+    update(id: string, patch: Partial<Pick<Study, "params" | "slot">>) {
+      save(studies.map((s) => (s.id === id ? { ...s, ...patch } : s)));
     },
   };
 }

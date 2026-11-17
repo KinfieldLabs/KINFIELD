@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CandlestickSeries,
   ColorType,
@@ -24,6 +24,7 @@ import { fetchCandles, fetchCandlesBefore, INTERVAL_MS, INTERVALS, type Candle, 
 import { liquidationPx, type ClosedTrade, type Order, type Position } from "@/lib/sim";
 import { IndicatorMenu } from "./chart/IndicatorMenu";
 import { StudyLayer } from "./chart/StudyLayer";
+import { StudySettings, Swatch } from "./chart/StudySettings";
 import { STUDIES, studyLabel } from "./chart/studies";
 import { useStudies } from "./chart/useStudies";
 
@@ -98,7 +99,10 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const studyLayer = useRef<StudyLayer | null>(null);
-  const { studies, full, add, remove, toggle } = useStudies();
+  const { studies, full, add, remove, toggle, update } = useStudies();
+  /** Indicator whose settings are open. */
+  const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  const closeSettings = useCallback(() => setSettingsFor(null), []);
   /** Bar under the crosshair, for the legend; null shows the latest. */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
@@ -382,8 +386,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
               const label = studyLabel(s);
               const lines = STUDIES[s.kind].lines(s);
               return (
-                <div key={s.id} className="group pointer-events-auto flex items-center gap-1.5 rounded px-1 -mx-1 hover:bg-navy-900/80">
-                  <Swatch color={lines[0].color} dashed={lines[0].style !== LineStyle.Solid} />
+                <div key={s.id} className="group pointer-events-auto relative -mx-1 flex items-center gap-1.5 rounded px-1 hover:bg-navy-900/80">
+                  <Swatch slot={s.slot} />
                   <span className={s.hidden ? "opacity-50" : ""}>{label}</span>
                   {!s.hidden &&
                     lines.map((l) => {
@@ -394,7 +398,11 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
                         </span>
                       );
                     })}
-                  <span className="flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+                  <span
+                    className={`flex items-center transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 ${
+                      settingsFor === s.id ? "opacity-100" : "opacity-0"
+                    }`}
+                  >
                     <button
                       onClick={() => toggle(s.id)}
                       aria-label={`${s.hidden ? "Show" : "Hide"} ${label}`}
@@ -402,6 +410,21 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
                       className="rounded p-0.5 hover:text-cream"
                     >
                       <EyeIcon off={!!s.hidden} />
+                    </button>
+                    <button
+                      // Toggles: keep the press from counting as a click outside the open settings
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => setSettingsFor((id) => (id === s.id ? null : s.id))}
+                      aria-label={`${label} settings`}
+                      aria-expanded={settingsFor === s.id}
+                      title="Settings"
+                      className="rounded p-0.5 hover:text-cream"
+                    >
+                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden>
+                        <path d="M2 4.5h12M2 11.5h12" strokeLinecap="round" />
+                        <circle cx="5.5" cy="4.5" r="1.8" className="fill-navy-900" />
+                        <circle cx="10.5" cy="11.5" r="1.8" className="fill-navy-900" />
+                      </svg>
                     </button>
                     <button
                       onClick={() => remove(s.id)}
@@ -414,6 +437,9 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
                       </svg>
                     </button>
                   </span>
+                  {settingsFor === s.id && (
+                    <StudySettings study={s} onChange={(patch) => update(s.id, patch)} onClose={closeSettings} />
+                  )}
                 </div>
               );
             })}
@@ -439,17 +465,6 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         )}
       </div>
     </div>
-  );
-}
-
-/** Line sample beside an indicator's name; the line's color identifies it on the chart. */
-function Swatch({ color, dashed }: { color: string; dashed: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-block h-[2px] w-3 rounded-full"
-      style={{ background: dashed ? `repeating-linear-gradient(90deg, ${color} 0 3px, transparent 3px 5px)` : color }}
-    />
   );
 }
 
