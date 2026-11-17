@@ -189,6 +189,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     switch (d.kind) {
       case "trend":
         return toSegment(at, pts[0], pts[1]) <= REACH;
+      case "hline":
+        return Math.abs(at[1] - pts[0][1]) <= REACH;
     }
   }
 
@@ -197,46 +199,71 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return this.draft ?? this.drawings.find((d) => d.id === this.selected) ?? null;
   }
 
-  /** Axis labels for the active drawing's points; rebuilt only when that drawing changes, as the chart expects. */
+  private byId(id: string): Drawing | undefined {
+    return this.draft?.id === id ? this.draft : this.drawings.find((d) => d.id === id);
+  }
+
+  /**
+   * Axis labels: every horizontal line's price, plus the prices and times of the active
+   * drawing's points. Rebuilt only when that set changes, as the chart expects.
+   */
   private refreshAxis() {
     const d = this.active();
-    const key = d ? `${d.id}:${d.points.length}` : "";
+    const all = this.draft ? [...this.drawings, this.draft] : this.drawings;
+    const hlines = all.filter((x) => x.kind === "hline").map((x) => x.id);
+    const pointed = d && d.kind !== "hline" ? d : null;
+    const key = [pointed ? `${pointed.id}:${pointed.points.length}` : "", ...hlines].join("|");
     if (key === this.axisKey) return;
     this.axisKey = key;
-    const n = d?.points.length ?? 0;
-    const point = (i: number) => this.active()?.points[i];
-    this.priceViews = Array.from({ length: n }, (_, i) =>
+
+    const price = (get: () => Anchor | undefined) =>
       axisLabel(() => {
-        const a = point(i);
+        const a = get();
         return a ? { at: this.toY(a.p), text: this.series?.priceFormatter().format(a.p) ?? "" } : null;
-      }),
-    );
-    this.timeViews = Array.from({ length: n }, (_, i) =>
+      });
+    const time = (get: () => Anchor | undefined) =>
       axisLabel(() => {
-        const a = point(i);
+        const a = get();
         return a ? { at: this.toX(a.t), text: this.fmtTime(a.t) } : null;
-      }),
-    );
+      });
+    const n = pointed?.points.length ?? 0;
+    const point = (i: number) => () => {
+      const a = this.active();
+      return a && a.kind !== "hline" ? a.points[i] : undefined;
+    };
+    this.priceViews = [
+      ...hlines.map((id) => price(() => this.byId(id)?.points[0])),
+      ...Array.from({ length: n }, (_, i) => price(point(i))),
+    ];
+    this.timeViews = Array.from({ length: n }, (_, i) => time(point(i)));
   }
 
   private render(target: Target) {
     const list = this.draft ? [...this.drawings, this.draft] : this.drawings;
     if (!list.length) return;
-    target.useMediaCoordinateSpace(({ context: ctx }) => {
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       for (const d of list) {
         const pts = this.screen(d);
         if (!pts) continue;
         const active = d === this.draft || d.id === this.selected;
         ctx.save();
-        this.paint(ctx, d, pts, active || d.id === this.hovered);
+        this.paint(ctx, d, pts, active || d.id === this.hovered, mediaSize.width);
         if (active) for (const p of pts) handle(ctx, p);
         ctx.restore();
       }
     });
   }
 
-  private paint(ctx: CanvasRenderingContext2D, d: Drawing, [a, b]: Point[], hot: boolean) {
+  private paint(ctx: CanvasRenderingContext2D, d: Drawing, [a, b]: Point[], hot: boolean, width: number) {
     switch (d.kind) {
+      case "hline":
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = hot ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, a[1]);
+        ctx.lineTo(width, a[1]);
+        ctx.stroke();
+        break;
       case "trend":
         ctx.strokeStyle = INK;
         ctx.lineWidth = hot ? 2.5 : 2;

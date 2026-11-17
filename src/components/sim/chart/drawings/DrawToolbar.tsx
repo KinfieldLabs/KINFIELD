@@ -11,6 +11,12 @@ const ICONS: Record<ToolKind, ReactNode> = {
       <circle cx="12.5" cy="3.5" r="1.6" />
     </>
   ),
+  hline: (
+    <>
+      <path d="M1.5 8h13" strokeLinecap="round" />
+      <circle cx="8" cy="8" r="1.6" />
+    </>
+  ),
 };
 
 /** The column of drawing tools down the left of the chart. */

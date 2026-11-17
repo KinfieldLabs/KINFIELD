@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend";
+export type ToolKind = "trend" | "hline";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -17,10 +17,10 @@ export interface Drawing {
   points: Anchor[];
 }
 
-/** How many points each kind of drawing is made of. */
-export const POINTS: Record<ToolKind, number> = { trend: 2 };
+/** How many points each kind of drawing is made of. A horizontal line uses only its point's price. */
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1 };
 
-export const TOOL_NAMES: Record<ToolKind, string> = { trend: "Trend line" };
+export const TOOL_NAMES: Record<ToolKind, string> = { trend: "Trend line", hline: "Horizontal line" };
 
 const MAX = 200;
 const key = (coin: string) => `kinfield.drawings.${coin}`;
