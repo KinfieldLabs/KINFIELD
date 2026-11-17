@@ -56,6 +56,8 @@ export function DrawToolbar({
   onTool,
   magnet,
   onMagnet,
+  hidden,
+  onHidden,
   count,
   onClear,
 }: {
@@ -63,6 +65,8 @@ export function DrawToolbar({
   onTool: (t: Tool) => void;
   magnet: boolean;
   onMagnet: (on: boolean) => void;
+  hidden: boolean;
+  onHidden: (hidden: boolean) => void;
   count: number;
   onClear: () => void;
 }) {
@@ -88,6 +92,11 @@ export function DrawToolbar({
       <ToolButton label="Magnet: snap points to candle prices" active={magnet} onClick={() => onMagnet(!magnet)}>
         <path d="M4.5 2.5v5.5a3.5 3.5 0 0 0 7 0V2.5" strokeLinecap="round" />
         <path d="M4.5 5h2M9.5 5h2" strokeLinecap="round" />
+      </ToolButton>
+      <ToolButton label={hidden ? "Show drawings" : "Hide drawings"} active={hidden} disabled={count === 0 && !hidden} onClick={() => onHidden(!hidden)}>
+        <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
+        <circle cx="8" cy="8" r="2" />
+        {hidden && <path d="M2.5 13.5l11-11" strokeLinecap="round" />}
       </ToolButton>
       <ToolButton
         label={confirming ? "Click again to remove all drawings" : "Remove all drawings"}

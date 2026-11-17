@@ -113,6 +113,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const { drawings, save: saveDrawings } = useDrawings(coin);
   const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null);
   const [magnet, setMagnet] = useState(false);
+  const [drawingsHidden, setDrawingsHidden] = useState(false);
   useEffect(() => {
     try {
       setMagnet(localStorage.getItem("kinfield.magnet") === "1");
@@ -329,6 +330,10 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     drawLayer.current?.update({ magnet });
   }, [magnet]);
   useEffect(() => {
+    drawLayer.current?.update({ hidden: drawingsHidden, hovered: null });
+    if (drawingsHidden) drawCtl.current?.select(null);
+  }, [drawingsHidden]);
+  useEffect(() => {
     drawCtl.current?.cancel();
     setTool("cursor");
   }, [coin]);
@@ -467,6 +472,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
           onTool={(t) => {
             drawCtl.current?.cancel();
             setTool(t);
+            // Drawing again brings hidden drawings back
+            if (t !== "cursor") setDrawingsHidden(false);
           }}
           magnet={magnet}
           onMagnet={(on) => {
@@ -475,6 +482,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
               localStorage.setItem("kinfield.magnet", on ? "1" : "0");
             } catch {}
           }}
+          hidden={drawingsHidden}
+          onHidden={setDrawingsHidden}
           count={drawings.length}
           onClear={() => saveDrawings([])}
         />

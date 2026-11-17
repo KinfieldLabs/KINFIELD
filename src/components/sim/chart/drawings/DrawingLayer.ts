@@ -81,6 +81,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   editable = true;
   /** Snap new points to the nearest open, high, low or close of the candle under them. */
   magnet = false;
+  /** Drawings stay saved but aren't shown, labelled or picked. */
+  hidden = false;
 
   private chart: IChartApi | null = null;
   private series: ISeriesApi<SeriesType> | null = null;
@@ -132,7 +134,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return h ? { externalId: h.id, zOrder: "top", cursorStyle: h.handle != null ? "move" : "pointer" } : null;
   }
 
-  update(patch: Partial<Pick<DrawingLayer, "drawings" | "draft" | "selected" | "hovered" | "editable" | "magnet">>) {
+  update(patch: Partial<Pick<DrawingLayer, "drawings" | "draft" | "selected" | "hovered" | "editable" | "magnet" | "hidden">>) {
     Object.assign(this, patch);
     this.refreshAxis();
     this.requestUpdate?.();
@@ -195,6 +197,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
 
   /** The drawing under a screen point: the selected drawing's handles first, then the topmost drawing. */
   hit(x: number, y: number): Hit | null {
+    if (this.hidden) return null;
     const sel = this.drawings.find((d) => d.id === this.selected);
     const selPts = sel && this.screen(sel);
     if (sel && selPts) {
@@ -273,12 +276,12 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
 
     const price = (get: () => Anchor | undefined) =>
       axisLabel(() => {
-        const a = get();
+        const a = this.hidden ? undefined : get();
         return a ? { at: this.toY(a.p), text: this.series?.priceFormatter().format(a.p) ?? "" } : null;
       });
     const time = (get: () => Anchor | undefined) =>
       axisLabel(() => {
-        const a = get();
+        const a = this.hidden ? undefined : get();
         return a ? { at: this.toX(a.t), text: this.fmtTime(a.t) } : null;
       });
     const n = pointed?.points.length ?? 0;
@@ -297,7 +300,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   }
 
   private render(target: Target) {
-    const list = this.draft ? [...this.drawings, this.draft] : this.drawings;
+    const shown = this.hidden ? [] : this.drawings;
+    const list = this.draft ? [...shown, this.draft] : shown;
     if (!list.length) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       for (const d of list) {
