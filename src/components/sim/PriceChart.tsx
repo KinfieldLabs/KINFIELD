@@ -27,6 +27,10 @@ import { StudyLayer } from "./chart/StudyLayer";
 import { StudyRow } from "./chart/StudyRow";
 import { STUDIES, type Study } from "./chart/studies";
 import { useStudies } from "./chart/useStudies";
+import { DrawingController } from "./chart/drawings/DrawingController";
+import { DrawingLayer } from "./chart/drawings/DrawingLayer";
+import { DrawToolbar } from "./chart/drawings/DrawToolbar";
+import { useDrawings, type Drawing, type Tool } from "./chart/drawings/model";
 
 interface Props {
   coin: string;
@@ -103,6 +107,16 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   /** Indicator whose settings are open. */
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const closeSettings = useCallback(() => setSettingsFor(null), []);
+
+  // Drawings: the controller reads the latest tool, drawings and interval through refs
+  const [tool, setTool] = useState<Tool>("cursor");
+  const { drawings, save: saveDrawings } = useDrawings(coin);
+  const drawLayer = useRef<DrawingLayer | null>(null);
+  const drawCtl = useRef<DrawingController | null>(null);
+  const live = useRef({ tool, drawings, saveDrawings, interval });
+  useEffect(() => {
+    live.current = { tool, drawings, saveDrawings, interval };
+  });
   /** Bar under the crosshair, for the legend; null shows the latest. */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
@@ -149,6 +163,18 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     volume.current.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     markers.current = createSeriesMarkers(candles.current, []);
     studyLayer.current = new StudyLayer(c);
+    const layer = new DrawingLayer(
+      () => bars.current,
+      () => INTERVAL_MS[live.current.interval],
+    );
+    candles.current.attachPrimitive(layer);
+    drawLayer.current = layer;
+    drawCtl.current = new DrawingController(el.current, c, layer, {
+      tool: () => live.current.tool,
+      done: () => setTool("cursor"),
+      drawings: () => live.current.drawings,
+      save: (next: Drawing[]) => live.current.saveDrawings(next),
+    });
 
     // Scrolling or zooming out near the oldest candle loads the history before it
     const loadOlder = async () => {
@@ -200,6 +226,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     });
     chart.current = c;
     return () => {
+      drawCtl.current?.destroy();
+      drawCtl.current = drawLayer.current = null;
       c.remove();
       chart.current = candles.current = volume.current = markers.current = studyLayer.current = null;
       lines.current = [];
@@ -278,6 +306,15 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     candles.current?.applyOptions({ lastValueVisible: atLatest });
     studyLayer.current?.setLastValueVisible(atLatest);
   }, [atLatest]);
+
+  // Drawings
+  useEffect(() => {
+    drawLayer.current?.update({ drawings });
+  }, [drawings]);
+  useEffect(() => {
+    drawCtl.current?.cancel();
+    setTool("cursor");
+  }, [coin]);
 
   // Indicators
   useEffect(() => {
@@ -406,66 +443,77 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
           Latest ⇥
         </button>
       </div>
-      <div className="relative min-h-0 flex-1">
-        <div ref={el} className="absolute inset-0" />
-        {legend && (
-          <div className="pointer-events-none absolute left-2 top-1.5 z-10 flex flex-col items-start gap-0.5 font-mono text-[11px] text-muted">
-            <div className="flex flex-wrap gap-x-3">
-              <span className="text-cream">
-                {coin} · {interval}
-              </span>
-              <span>
-                O <span className={tone(chg)}>{fmtPxAt(legend.o, ref)}</span>
-              </span>
-              <span>
-                H <span className={tone(chg)}>{fmtPxAt(legend.h, ref)}</span>
-              </span>
-              <span>
-                L <span className={tone(chg)}>{fmtPxAt(legend.l, ref)}</span>
-              </span>
-              <span>
-                C <span className={tone(chg)}>{fmtPxAt(legend.c, ref)}</span>
-              </span>
-              <span className={tone(chg)}>{fmtPct(chg)}</span>
-              <span>Vol {fmtCompact(legend.v * legend.c)}</span>
-            </div>
-            {studies
-              .filter((s) => !STUDIES[s.kind].pane)
-              .map((s) => (
-                <StudyRow key={s.id} {...rowProps(s)} />
-              ))}
-          </div>
-        )}
-        {legend &&
-          studies
-            .filter((s) => STUDIES[s.kind].pane && paneTops[s.id] != null)
-            .map((s) => (
-              <div
-                key={s.id}
-                className="pointer-events-none absolute left-2 z-10 font-mono text-[11px] text-muted"
-                style={{ top: paneTops[s.id] + 4 }}
-              >
-                <StudyRow {...rowProps(s)} settingsUp />
+      <div className="flex min-h-0 flex-1">
+        <DrawToolbar
+          tool={tool}
+          onTool={(t) => {
+            drawCtl.current?.cancel();
+            setTool(t);
+          }}
+          count={drawings.length}
+          onClear={() => saveDrawings([])}
+        />
+        <div className="relative min-h-0 flex-1">
+          <div ref={el} className="absolute inset-0" style={{ touchAction: tool === "cursor" ? undefined : "none" }} />
+          {legend && (
+            <div className="pointer-events-none absolute left-2 top-1.5 z-10 flex flex-col items-start gap-0.5 font-mono text-[11px] text-muted">
+              <div className="flex flex-wrap gap-x-3">
+                <span className="text-cream">
+                  {coin} · {interval}
+                </span>
+                <span>
+                  O <span className={tone(chg)}>{fmtPxAt(legend.o, ref)}</span>
+                </span>
+                <span>
+                  H <span className={tone(chg)}>{fmtPxAt(legend.h, ref)}</span>
+                </span>
+                <span>
+                  L <span className={tone(chg)}>{fmtPxAt(legend.l, ref)}</span>
+                </span>
+                <span>
+                  C <span className={tone(chg)}>{fmtPxAt(legend.c, ref)}</span>
+                </span>
+                <span className={tone(chg)}>{fmtPct(chg)}</span>
+                <span>Vol {fmtCompact(legend.v * legend.c)}</span>
               </div>
-            ))}
-        {!atLatest && !loading && (
-          <button
-            onClick={toLatest}
-            className="absolute bottom-9 right-16 z-10 flex items-center gap-1.5 rounded-md border border-cyan/50 bg-navy-900/95 px-2.5 py-1 text-xs text-cyan shadow-lg shadow-black/40 hover:bg-navy-800"
-          >
-            Viewing history · Back to now ⇥
-          </button>
-        )}
-        {loadingOlder && (
-          <div className="pointer-events-none absolute bottom-8 left-2 z-10 rounded-md border border-line bg-navy-900/90 px-2 py-1 font-mono text-[10px] text-muted">
-            Loading earlier candles…
-          </div>
-        )}
-        {(loading || failed) && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-muted">
-            {failed ? "Couldn't load candles. Retrying when you switch markets." : `Loading ${coin} candles…`}
-          </div>
-        )}
+              {studies
+                .filter((s) => !STUDIES[s.kind].pane)
+                .map((s) => (
+                  <StudyRow key={s.id} {...rowProps(s)} />
+                ))}
+            </div>
+          )}
+          {legend &&
+            studies
+              .filter((s) => STUDIES[s.kind].pane && paneTops[s.id] != null)
+              .map((s) => (
+                <div
+                  key={s.id}
+                  className="pointer-events-none absolute left-2 z-10 font-mono text-[11px] text-muted"
+                  style={{ top: paneTops[s.id] + 4 }}
+                >
+                  <StudyRow {...rowProps(s)} settingsUp />
+                </div>
+              ))}
+          {!atLatest && !loading && (
+            <button
+              onClick={toLatest}
+              className="absolute bottom-9 right-16 z-10 flex items-center gap-1.5 rounded-md border border-cyan/50 bg-navy-900/95 px-2.5 py-1 text-xs text-cyan shadow-lg shadow-black/40 hover:bg-navy-800"
+            >
+              Viewing history · Back to now ⇥
+            </button>
+          )}
+          {loadingOlder && (
+            <div className="pointer-events-none absolute bottom-8 left-2 z-10 rounded-md border border-line bg-navy-900/90 px-2 py-1 font-mono text-[10px] text-muted">
+              Loading earlier candles…
+            </div>
+          )}
+          {(loading || failed) && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-muted">
+              {failed ? "Couldn't load candles. Retrying when you switch markets." : `Loading ${coin} candles…`}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
