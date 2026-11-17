@@ -1,4 +1,4 @@
-/** Hyperliquid's mark, from hyperliquid.xyz, for "Powered by" credit. */
+/** Hyperliquid's mark, from hyperliquid.xyz, credited as the source of market data. */
 export function HyperliquidMark({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 42 156 116" className={className} fill="currentColor" aria-hidden>

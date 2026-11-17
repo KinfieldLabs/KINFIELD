@@ -10,7 +10,7 @@ const steps = [
   {
     n: "01",
     title: "Simulate",
-    body: "Trade perpetuals against live Hyperliquid prices with a paper balance. No wallet, no risk: real market conditions.",
+    body: "Trade perpetuals against live Hyperliquid prices with a paper balance. No wallet and no real funds, just live market prices.",
   },
   {
     n: "02",
@@ -129,7 +129,7 @@ export default function Home() {
                 style={i(0)}
               >
                 <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan" />
-                <span className="t-label">Powered by Hyperliquid</span>
+                <span className="t-label">Market data from Hyperliquid</span>
                 <HyperliquidMark className="h-[17px] w-auto text-[#97fce4] transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-110" />
               </a>
             </InView>
@@ -284,7 +284,7 @@ export default function Home() {
               Launch simulator
             </ConstellationButton>
             <p className="reveal t-body" style={i(1)}>
-              $100,000 in simulated capital. Live markets. Zero risk.
+              $100,000 in simulated capital. Live markets. No real funds are used.
             </p>
           </InView>
         </Stage>
