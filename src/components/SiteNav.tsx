@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Logo } from "./Logo";
 import { ConstellationButton } from "./ConstellationButton";
 
@@ -20,6 +22,20 @@ const SOCIALS = [
     size: "h-[18px] w-[18px]",
   },
 ];
+
+/** Sections of the home page. */
+const SECTIONS = [
+  ["how", "How it works"],
+  ["why", "Why Kinfield"],
+  ["features", "Features"],
+] as const;
+
+/** Pages of their own (not open to the public yet). */
+const PAGES = [
+  ["/campaign", "Campaign"],
+  ["/agentboard", "Agentboard"],
+  ["/docs", "Docs"],
+] as const;
 
 /** Kinfield's X and GitHub, as icon links. */
 function Socials() {
@@ -47,6 +63,8 @@ function Socials() {
 /** Transparent top bar that tucks away while scrolling down and returns on scroll up. */
 export function SiteNav() {
   const [hidden, setHidden] = useState(false);
+  const path = usePathname();
+  const home = path === "/";
   useEffect(() => {
     let last = window.scrollY;
     const on = () => {
@@ -68,15 +86,21 @@ export function SiteNav() {
       <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-5">
         <Logo />
         <nav className="flex items-center gap-3 sm:gap-7">
-          <a href="#how" className="link-ghost t-label hidden sm:block">
-            How it works
-          </a>
-          <a href="#why" className="link-ghost t-label hidden sm:block">
-            Why Kinfield
-          </a>
-          <a href="#features" className="link-ghost t-label hidden md:block">
-            Features
-          </a>
+          {SECTIONS.map(([id, label]) => (
+            <a key={id} href={home ? `#${id}` : `/#${id}`} className="link-ghost t-label hidden xl:block">
+              {label}
+            </a>
+          ))}
+          {PAGES.map(([href, label]) => (
+            <Link
+              key={href}
+              href={href}
+              aria-current={path === href ? "page" : undefined}
+              className={`link-ghost t-label hidden md:block ${path === href ? "!text-cream" : ""}`}
+            >
+              {label}
+            </Link>
+          ))}
           <Socials />
           <ConstellationButton href="/simulate" size="sm" className="whitespace-nowrap">
             Launch<span className="hidden sm:inline"> simulator</span>

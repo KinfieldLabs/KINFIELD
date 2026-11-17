@@ -340,3 +340,55 @@ html.lenis body {
 .flash-down {
   animation: flash-down 0.8s ease-out;
 }
+
+/* ---------- Coming soon ---------- */
+
+/* Cream headline with a slow cyan light passing through it */
+.shimmer-text {
+  background: linear-gradient(100deg, var(--cream) 35%, var(--cyan) 50%, var(--cream) 65%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 5s var(--ease-in-out) infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+/* A thin light that travels around the glass card's border */
+.orbit-border {
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--orbit, 0deg), transparent 0 70%, var(--cyan) 85%, transparent 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: orbit 6s linear infinite;
+  pointer-events: none;
+}
+@property --orbit {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes orbit {
+  to {
+    --orbit: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text,
+  .orbit-border {
+    animation: none;
+  }
+}

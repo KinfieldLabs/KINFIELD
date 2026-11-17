@@ -69,7 +69,7 @@ const FOOTER_LINKS: { label: string; href?: string }[] = [
   { label: "GitHub", href: "https://github.com/KinfieldLabs/KINFIELD" },
   { label: "Kinfield Datasets", href: "https://github.com/KinfieldLabs/kinfield-datasets" },
   { label: "Simulator", href: "/simulate" },
-  { label: "Docs" },
+  { label: "Docs", href: "/docs" },
   { label: "DexScreener" },
 ];
 

@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
  * Page-wide particle constellation.
  *
  * A fixed canvas sits behind the page. Every section tagged with
- * `data-shape="<name>"` and `data-side="left|right"` names the figure the
+ * `data-shape="<name>"` and `data-side="left|right|center"` names the figure the
  * particles should form while that section is centred in the viewport.
  * Between sections the swarm flies from one figure to the next, so the
  * visual follows you down the page.
@@ -237,7 +237,7 @@ export function Constellation() {
         const r = el.getBoundingClientRect();
         return {
           shape: el.dataset.shape as ShapeName,
-          side: el.dataset.side === "left" ? -1 : 1,
+          side: el.dataset.side === "left" ? -1 : el.dataset.side === "center" ? 0 : 1,
           c: r.top + r.height / 2 - mid,
         };
       });
