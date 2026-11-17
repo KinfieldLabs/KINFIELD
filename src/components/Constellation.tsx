@@ -201,7 +201,9 @@ export function Constellation() {
   useEffect(() => {
     const canvas = ref.current!;
     const ctx = canvas.getContext("2d")!;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Reduced motion: one still frame, redrawn only when the page scrolls or resizes
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduced = motion.matches;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const shapes = {} as Record<ShapeName, Pt[]>;
@@ -279,6 +281,20 @@ export function Constellation() {
 
     const start = performance.now();
     let raf = 0;
+    /** Draws one frame now, for reduced motion, where nothing runs between frames. */
+    const still = () => {
+      if (!reduced) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    };
+    const onMotion = () => {
+      reduced = motion.matches;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    };
+    motion.addEventListener("change", onMotion);
+    window.addEventListener("scroll", still, { passive: true });
+    window.addEventListener("resize", still);
 
     const draw = (p: Particle, alphaMul: number) => {
       const s = p.size;
@@ -296,15 +312,16 @@ export function Constellation() {
     };
 
     const frame = (now: number) => {
-      raf = requestAnimationFrame(frame);
-      const t = now - start;
+      if (!reduced) raf = requestAnimationFrame(frame);
+      // With reduced motion time stands still, so nothing drifts, breathes or sways
+      const t = reduced ? 0 : now - start;
       const desktop = w >= 1024;
       const st = readScroll();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Ambient field: slow drift with gentle scroll parallax
-      const sy = window.scrollY * 0.12;
+      const sy = reduced ? 0 : window.scrollY * 0.12;
       for (const p of ambient) {
         const x = (p.x + Math.sin(t / 4000 + p.phase) * 18 + w) % w;
         const y = (((p.y - sy + Math.cos(t / 5000 + p.phase) * 18) % h) + h) % h;
@@ -312,14 +329,16 @@ export function Constellation() {
         const oy = p.y;
         p.x = x;
         p.y = y;
-        p.rot += p.spin;
+        if (!reduced) p.rot += p.spin;
         draw(p, 1);
         p.x = ox;
         p.y = oy;
       }
 
       if (!st) return;
-      const { a, b, t: m } = st;
+      // With reduced motion each section shows its figure whole, with no morph between them
+      const { a, b } = st;
+      const m = reduced ? Math.round(st.t) : st.t;
       const side = desktop ? a.side + (b.side - a.side) * m : 0;
       const cx = w / 2 + side * w * 0.24;
       const cy = h / 2 + (desktop ? 20 : 0);
@@ -374,6 +393,9 @@ export function Constellation() {
 
     return () => {
       cancelAnimationFrame(raf);
+      motion.removeEventListener("change", onMotion);
+      window.removeEventListener("scroll", still);
+      window.removeEventListener("resize", still);
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerleave", onLeave);
