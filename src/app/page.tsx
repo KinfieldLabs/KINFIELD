@@ -64,6 +64,15 @@ function Stage({
   );
 }
 
+const FOOTER_LINKS: { label: string; href?: string }[] = [
+  { label: "X", href: "https://x.com/kinfieldlabs" },
+  { label: "GitHub", href: "https://github.com/KinfieldLabs/KINFIELD" },
+  { label: "Kinfield Datasets", href: "https://github.com/KinfieldLabs/kinfield-datasets" },
+  { label: "Simulator", href: "/simulate" },
+  { label: "Docs" },
+  { label: "DexScreener" },
+];
+
 export default function Home() {
   return (
     <div className="relative overflow-hidden">
@@ -194,11 +203,34 @@ export default function Home() {
           <InView>
             <div className="rule" />
           </InView>
-          <div className="flex flex-col items-start justify-between gap-4 py-10 sm:flex-row sm:items-center">
-            <Logo />
-            <p className="text-sm font-light text-muted">
-              Simulated trading only. Not financial advice. Market data via Hyperliquid.
-            </p>
+          <div className="flex flex-col gap-8 py-10 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-3">
+              <Logo />
+              <p className="max-w-xs text-sm font-light text-muted">
+                Simulated trading only. Not financial advice. Market data via Hyperliquid.
+              </p>
+            </div>
+            <nav aria-label="Footer" className="grid grid-cols-2 gap-x-10 gap-y-3 sm:grid-cols-3">
+              {FOOTER_LINKS.map((l) =>
+                l.href ? (
+                  <a
+                    key={l.label}
+                    href={l.href}
+                    {...(l.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                    className="link-ghost w-fit text-sm"
+                  >
+                    {l.label}
+                  </a>
+                ) : (
+                  <span key={l.label} className="flex w-fit items-center gap-2 text-sm text-muted/70" aria-disabled="true">
+                    {l.label}
+                    <span className="rounded-full border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
+                      Soon
+                    </span>
+                  </span>
+                ),
+              )}
+            </nav>
           </div>
         </div>
       </footer>
