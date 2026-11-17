@@ -9,6 +9,8 @@ export function useInView<T extends HTMLElement>(onMount = false, threshold = 0.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // The animations are running: keep the hidden starting states (see globals.css)
+    document.documentElement.classList.add("motion-ready");
     if (onMount) {
       const id = requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("is-in")));
       return () => cancelAnimationFrame(id);

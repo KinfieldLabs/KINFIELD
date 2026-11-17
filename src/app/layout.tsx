@@ -14,7 +14,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Hide reveals for their entrance only once scripts run, and show everything if the animations don't start */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "var d=document.documentElement;d.classList.add('motion');setTimeout(function(){if(!d.classList.contains('motion-ready'))d.classList.remove('motion')},4000)",
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );
