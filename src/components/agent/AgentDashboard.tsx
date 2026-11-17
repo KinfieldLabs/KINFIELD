@@ -129,20 +129,47 @@ export function AgentDashboard() {
   );
 }
 
+/** The steps from first trade to an agent trading on its own, for people who haven't signed in. */
+const JOURNEY: [string, string][] = [
+  ["Trade in the simulator", "Start straight away as a guest. Your trades stay in this browser, and no real money is ever used."],
+  ["Sign in to keep a record", "Signed-in trades go on a tamper-evident ledger, and your agent gets its name, like KIN001."],
+  [
+    "Your agent trades on its own",
+    "After 30 closed trades it trades its own simulated account every 15 minutes. This page then shows its record and readiness checks.",
+  ],
+];
+
 function SignedOut({ available }: { available: boolean }) {
   return (
-    <div className="tpanel mx-auto mt-10 max-w-xl p-8 text-center">
-      <h1 className="text-2xl tracking-[-0.02em]">Your agent&apos;s track record</h1>
+    <div className="tpanel mx-auto mt-10 max-w-xl p-8">
+      <h1 className="text-2xl tracking-[-0.02em]">Your agent</h1>
       <p className="mt-3 text-sm leading-relaxed text-mist">
-        Every signed-in trade goes on a verified ledger. This page judges that record against the checks an agent
-        would need to pass before it could be trusted with real capital.
+        Every account comes with an experimental agent. It learns from the market conditions and outcomes of your
+        trades, then trades a simulated account of its own.
       </p>
-      <p className="mt-4 text-sm text-muted">
-        {available ? "Sign in from the top right to see yours." : "Accounts are not set up on this server yet."}
-      </p>
-      <Link href="/simulate" className="mt-6 inline-block text-sm text-cyan underline-offset-2 hover:underline">
-        Open the terminal
-      </Link>
+      <ol className="mt-6 flex flex-col gap-4">
+        {JOURNEY.map(([title, body], k) => (
+          <li key={title} className="grid grid-cols-[28px_1fr] gap-3">
+            <span className="font-mono text-sm text-cyan">0{k + 1}</span>
+            <div>
+              <p className="text-sm text-cream">{title}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted">{body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-7 flex flex-wrap items-center gap-3">
+        <Link href="/simulate" className="rounded-full border border-line px-4 py-2 text-sm text-cream hover:border-cyan/60">
+          Continue as guest
+        </Link>
+        {available ? (
+          <a href="/api/auth/github" className="rounded-full bg-cyan px-4 py-2 text-sm font-semibold text-navy-950 hover:bg-cyan/90">
+            Sign in to save a record
+          </a>
+        ) : (
+          <span className="text-sm text-muted">Accounts are not set up on this server yet.</span>
+        )}
+      </div>
     </div>
   );
 }
