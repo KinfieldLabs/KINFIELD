@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect";
+export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -18,7 +18,7 @@ export interface Drawing {
 }
 
 /** How many points each kind of drawing is made of. A horizontal line uses only its point's price, a vertical line only its time. */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2 };
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2 };
 
 export const TOOL_NAMES: Record<ToolKind, string> = {
   trend: "Trend line",
@@ -26,6 +26,7 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   vline: "Vertical line",
   fib: "Fib retracement",
   rect: "Rectangle",
+  measure: "Measure",
 };
 
 /**

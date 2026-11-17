@@ -11,6 +11,7 @@ import type {
   SeriesType,
   Time,
 } from "lightweight-charts";
+import { fmtDuration } from "@/lib/format";
 import type { Candle } from "@/lib/hyperliquid";
 import { FIB_LEVELS, type Anchor, type Drawing } from "./model";
 
@@ -201,6 +202,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       case "vline":
         return Math.abs(at[0] - pts[0][0]) <= REACH;
       case "rect":
+      case "measure":
         return (
           at[0] >= Math.min(pts[0][0], pts[1][0]) - REACH &&
           at[0] <= Math.max(pts[0][0], pts[1][0]) + REACH &&
@@ -305,6 +307,9 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       case "fib":
         this.paintFib(ctx, d, a, b, hot);
         break;
+      case "measure":
+        this.paintMeasure(ctx, d, a, b, size);
+        break;
       case "rect": {
         const x = Math.min(a[0], b[0]);
         const y = Math.min(a[1], b[1]);
@@ -327,6 +332,56 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         ctx.stroke();
         break;
     }
+  }
+
+  /** A box from one point to the other, green when price rose and red when it fell, with the move, the candles and the time it took. */
+  private paintMeasure(ctx: CanvasRenderingContext2D, d: Drawing, a: Point, b: Point, size: { width: number; height: number }) {
+    const [pa, pb] = d.points;
+    const up = pb.p >= pa.p;
+    const rgb = up ? "47, 214, 160" : "255, 107, 125";
+    const x = Math.min(a[0], b[0]);
+    const y = Math.min(a[1], b[1]);
+    const w = Math.abs(b[0] - a[0]);
+    const h = Math.abs(b[1] - a[1]);
+    ctx.fillStyle = `rgba(${rgb}, 0.14)`;
+    ctx.fillRect(x, y, w, h);
+
+    // Arrows across the box: up or down for the price, along for the time
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    ctx.strokeStyle = `rgba(${rgb}, 0.9)`;
+    ctx.lineWidth = 1;
+    arrow(ctx, [cx, a[1]], [cx, b[1]]);
+    arrow(ctx, [a[0], cy], [b[0], cy]);
+
+    const bars = this.bars();
+    const step = this.stepMs();
+    const n = bars.length ? Math.round(timeToLogical(bars, pb.t, step) - timeToLogical(bars, pa.t, step)) : 0;
+    const dp = pb.p - pa.p;
+    const fmt = (p: number) => this.series?.priceFormatter().format(p) ?? p.toFixed(2);
+    const lines = [
+      `${dp >= 0 ? "+" : "-"}${fmt(Math.abs(dp))} (${dp >= 0 ? "+" : ""}${((dp / pa.p) * 100).toFixed(2)}%)`,
+      `${Math.abs(n)} bar${Math.abs(n) === 1 ? "" : "s"}, ${fmtDuration(Math.abs(pb.t - pa.t))}`,
+    ];
+
+    // The readout sits past the end the price moved toward, kept on the chart
+    ctx.font = `11px ${monoFont()}`;
+    const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 14;
+    const bh = 34;
+    const bx = Math.min(Math.max(cx - bw / 2, 2), size.width - bw - 2);
+    const by = Math.min(Math.max(up ? y - bh - 6 : y + h + 6, 2), size.height - bh - 2);
+    ctx.fillStyle = "rgba(1, 21, 77, 0.92)";
+    ctx.strokeStyle = `rgba(${rgb}, 0.6)`;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillStyle = `rgb(${rgb})`;
+    ctx.fillText(lines[0], bx + bw / 2, by + 10);
+    ctx.fillStyle = INK;
+    ctx.fillText(lines[1], bx + bw / 2, by + 24);
   }
 
   /** Level lines between the two points, the bands between them shaded, each level labelled with its price. */
@@ -382,6 +437,22 @@ function axisLabel(get: () => { at: number | null; text: string } | null): ISeri
     backColor: () => INK,
     visible: () => get()?.at != null,
   };
+}
+
+/** A line from one point to another with a small head at the far end. */
+function arrow(ctx: CanvasRenderingContext2D, [x1, y1]: Point, [x2, y2]: Point) {
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  if (len > 12) {
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    for (const s of [-1, 1]) {
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - 6 * Math.cos(ang + s * 0.45), y2 - 6 * Math.sin(ang + s * 0.45));
+    }
+  }
+  ctx.stroke();
 }
 
 function handle(ctx: CanvasRenderingContext2D, [x, y]: Point) {
