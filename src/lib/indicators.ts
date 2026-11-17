@@ -104,6 +104,29 @@ export function rsi(src: readonly number[], n: number): Line {
   return out;
 }
 
+/** Wilder's smoothing (RMA), seeded with the simple average of the first n values. */
+export function rma(src: readonly number[], n: number): Line {
+  const out: Line = new Array(src.length).fill(null);
+  if (src.length < n) return out;
+  let prev = 0;
+  for (let i = 0; i < n; i++) prev += src[i];
+  prev /= n;
+  out[n - 1] = prev;
+  for (let i = n; i < src.length; i++) out[i] = prev = (prev * (n - 1) + src[i]) / n;
+  return out;
+}
+
+/**
+ * Average True Range: Wilder's average of each bar's true range, the largest of its
+ * high to low and its gap from the previous close.
+ */
+export function atr(bars: readonly Bar[], n: number): Line {
+  const tr = bars.map((b, i) =>
+    i === 0 ? b.h - b.l : Math.max(b.h - b.l, Math.abs(b.h - bars[i - 1].c), Math.abs(b.l - bars[i - 1].c)),
+  );
+  return rma(tr, n);
+}
+
 /** Simple moving average of a line that may have gaps; null wherever its window has one. */
 function smaOfLine(src: Line, n: number): Line {
   const out: Line = new Array(src.length).fill(null);

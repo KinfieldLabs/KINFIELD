@@ -1,8 +1,8 @@
 import { LineStyle } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
-import { bollinger, ema, endsDay, macd, rsi, sma, stochastic, vwap, type Line } from "@/lib/indicators";
+import { atr, bollinger, ema, endsDay, macd, rsi, sma, stochastic, vwap, type Line } from "@/lib/indicators";
 
-export type StudyKind = "ma" | "ema" | "bb" | "vwap" | "rsi" | "macd" | "stoch";
+export type StudyKind = "ma" | "ema" | "bb" | "vwap" | "rsi" | "macd" | "stoch" | "atr";
 
 /** An indicator on the chart. */
 export interface Study {
@@ -203,6 +203,17 @@ export const STUDIES: Record<StudyKind, StudyDef> = {
     levelBand: [20, 80],
     range: [0, 100],
     decimals: 2,
+  },
+  atr: {
+    kind: "atr",
+    name: "Average True Range",
+    short: "ATR",
+    blurb: "How far price typically moves in one candle, gaps included",
+    group: "Volatility",
+    params: [{ label: "Length", value: 14, min: 1, max: 500 }],
+    lines: single("atr"),
+    compute: (bars, [n]) => ({ atr: atr(bars, n) }),
+    pane: true,
   },
 };
 
