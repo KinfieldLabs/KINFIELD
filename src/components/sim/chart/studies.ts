@@ -1,8 +1,8 @@
 import { LineStyle } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
-import { bollinger, ema, sma, type Line } from "@/lib/indicators";
+import { bollinger, ema, endsDay, sma, vwap, type Line } from "@/lib/indicators";
 
-export type StudyKind = "ma" | "ema" | "bb";
+export type StudyKind = "ma" | "ema" | "bb" | "vwap";
 
 /** An indicator on the chart. */
 export interface Study {
@@ -44,6 +44,8 @@ export interface StudyDef {
   compute(bars: readonly Candle[], params: readonly number[]): Record<string, Line>;
   /** Shades the area between two of the lines. */
   fill?: { from: string; to: string };
+  /** Whether the lines break after bar i instead of joining it to the next, as at a reset. */
+  breaksAfter?(bars: readonly Candle[], i: number): boolean;
 }
 
 /**
@@ -112,9 +114,20 @@ export const STUDIES: Record<StudyKind, StudyDef> = {
     compute: (bars, [n, mult]) => bollinger(closes(bars), n, mult),
     fill: { from: "upper", to: "lower" },
   },
+  vwap: {
+    kind: "vwap",
+    name: "VWAP",
+    short: "VWAP",
+    blurb: "Average price weighted by volume, starting over each day at 00:00 UTC",
+    group: "Volume",
+    params: [],
+    lines: single("vwap"),
+    compute: (bars) => ({ vwap: vwap(bars) }),
+    breaksAfter: endsDay,
+  },
 };
 
 export const STUDY_LIST = Object.values(STUDIES);
 
 /** Legend label, e.g. "MA 20". */
-export const studyLabel = (s: Study) => `${STUDIES[s.kind].short} ${s.params.join(" ")}`;
+export const studyLabel = (s: Study) => [STUDIES[s.kind].short, ...s.params].join(" ");

@@ -15,11 +15,15 @@ interface Entry {
 const sec = (ms: number) => (ms / 1000) as UTCTimestamp;
 const sigOf = (s: Study) => `${s.kind}:${s.params.join(",")}:${s.slot}`;
 
-function toData(bars: readonly Candle[], line: Line): LineData[] {
+/** The library strokes each segment in its starting point's color, so a clear point ends the line there. */
+const BREAK = "rgba(0, 0, 0, 0)";
+
+function toData(bars: readonly Candle[], line: Line, breaksAfter?: (bars: readonly Candle[], i: number) => boolean): LineData[] {
   const out: LineData[] = [];
   for (let i = 0; i < bars.length; i++) {
     const v = line[i];
-    if (v != null) out.push({ time: sec(bars[i].t), value: v });
+    if (v == null) continue;
+    out.push(breaksAfter?.(bars, i) ? { time: sec(bars[i].t), value: v, color: BREAK } : { time: sec(bars[i].t), value: v });
   }
   return out;
 }
@@ -29,6 +33,8 @@ export class StudyLayer {
   private entries = new Map<string, Entry>();
   private precision = 2;
   private lastValueVisible = true;
+  /** Bars at the last full fill; a new bar refills, so breaks before it are drawn. */
+  private filledBars = 0;
 
   constructor(private chart: IChartApi) {}
 
@@ -55,13 +61,15 @@ export class StudyLayer {
 
   /** Recomputes everything after the bars were replaced (market, interval or older history). */
   reload(bars: readonly Candle[]) {
+    this.filledBars = bars.length;
     this.entries.forEach((e) => this.fill(e, bars));
   }
 
-  /** Applies a live candle: only the latest point of each line can change. */
+  /** Applies a live candle: within a bar only the latest point of each line changes. */
   tick(bars: readonly Candle[]) {
     const i = bars.length - 1;
     if (i < 0) return;
+    if (bars.length !== this.filledBars) return this.reload(bars);
     for (const e of this.entries.values()) {
       e.values = STUDIES[e.study.kind].compute(bars, e.study.params);
       for (const [key, series] of e.series) {
@@ -125,7 +133,8 @@ export class StudyLayer {
   }
 
   private fill(e: Entry, bars: readonly Candle[]) {
-    e.values = STUDIES[e.study.kind].compute(bars, e.study.params);
-    for (const [key, series] of e.series) series.setData(toData(bars, e.values[key] ?? []));
+    const def = STUDIES[e.study.kind];
+    e.values = def.compute(bars, e.study.params);
+    for (const [key, series] of e.series) series.setData(toData(bars, e.values[key] ?? [], def.breaksAfter));
   }
 }

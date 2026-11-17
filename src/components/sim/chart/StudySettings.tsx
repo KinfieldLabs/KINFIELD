@@ -103,9 +103,13 @@ export function StudySettings({
         ))}
       </div>
       <div className="mt-3 flex items-center justify-between">
-        <button onClick={() => onChange({ params: def.params.map((p) => p.value) })} className="text-[11px] text-muted hover:text-cream">
-          Reset values
-        </button>
+        {def.params.length > 0 ? (
+          <button onClick={() => onChange({ params: def.params.map((p) => p.value) })} className="text-[11px] text-muted hover:text-cream">
+            Reset values
+          </button>
+        ) : (
+          <span />
+        )}
         <button onClick={onClose} className="rounded-md bg-navy-700 px-2.5 py-1 text-[11px] text-cream hover:bg-navy-800">
           Done
         </button>

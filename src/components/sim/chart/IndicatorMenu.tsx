@@ -75,7 +75,7 @@ export function IndicatorMenu({ onAdd, full }: { onAdd: (kind: StudyKind) => voi
                     className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-navy-800 disabled:opacity-50 disabled:hover:bg-transparent"
                   >
                     <span className="text-xs text-cream">{d.name}</span>
-                    <span className="ml-1.5 font-mono text-[10px] text-muted">{d.short}</span>
+                    {d.short !== d.name && <span className="ml-1.5 font-mono text-[10px] text-muted">{d.short}</span>}
                     <span className="block text-[11px] text-muted">{d.blurb}</span>
                   </button>
                 ))}

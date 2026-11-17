@@ -5,6 +5,44 @@
  */
 export type Line = (number | null)[];
 
+interface Bar {
+  t: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+const DAY_MS = 86_400_000;
+
+/** Whether bar i is the last of its UTC day, with the next day's first bar after it. */
+export const endsDay = (bars: readonly { t: number }[], i: number) =>
+  i + 1 < bars.length && Math.floor(bars[i + 1].t / DAY_MS) !== Math.floor(bars[i].t / DAY_MS);
+
+/**
+ * Volume-weighted average of the typical price, (high + low + close) / 3, starting
+ * over each day at 00:00 UTC, when TradingView's session VWAP resets for crypto.
+ */
+export function vwap(bars: readonly Bar[]): Line {
+  const out: Line = new Array(bars.length).fill(null);
+  let day = -1;
+  let pv = 0;
+  let vol = 0;
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const d = Math.floor(b.t / DAY_MS);
+    if (d !== day) {
+      day = d;
+      pv = vol = 0;
+    }
+    const tp = (b.h + b.l + b.c) / 3;
+    pv += tp * b.v;
+    vol += b.v;
+    out[i] = vol > 0 ? pv / vol : tp;
+  }
+  return out;
+}
+
 /** Simple moving average. */
 export function sma(src: readonly number[], n: number): Line {
   const out: Line = new Array(src.length).fill(null);
