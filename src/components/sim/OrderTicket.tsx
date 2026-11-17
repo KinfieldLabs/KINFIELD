@@ -327,6 +327,12 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
       >
         {label}
       </button>
+      <p className="-mt-1 flex items-center justify-center gap-1.5 text-[11px] text-muted">
+        <span className="rounded-full border border-cyan/40 bg-cyan/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-cyan">
+          Simulated
+        </span>
+        No real funds are used
+      </p>
       {result && <p className={`text-xs ${result.ok ? "text-long" : "text-short"}`}>{result.text}</p>}
     </div>
   );

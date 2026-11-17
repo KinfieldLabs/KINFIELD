@@ -299,7 +299,12 @@ function AccountSummary({
   return (
     <div className="border-t border-line p-3">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-semibold">Account</h3>
+        <h3 className="flex items-center gap-2 text-xs font-semibold">
+          Account
+          <span className="rounded-full border border-cyan/40 bg-cyan/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wider text-cyan">
+            Simulated
+          </span>
+        </h3>
         <button
           onClick={() =>
             confirm(
