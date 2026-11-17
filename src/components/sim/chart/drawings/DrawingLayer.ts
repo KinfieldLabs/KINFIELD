@@ -13,7 +13,7 @@ import type {
 } from "lightweight-charts";
 import { fmtDuration } from "@/lib/format";
 import type { Candle } from "@/lib/hyperliquid";
-import { FIB_LEVELS, type Anchor, type Drawing } from "./model";
+import { FIB_EXT_LEVELS, FIB_LEVELS, type Anchor, type Drawing } from "./model";
 
 type Target = Parameters<IPrimitivePaneRenderer["draw"]>[0];
 type Point = [number, number];
@@ -292,11 +292,13 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
           at[1] >= Math.min(pts[0][1], pts[1][1]) - REACH &&
           at[1] <= Math.max(pts[0][1], pts[1][1]) + REACH
         );
-      case "fib": {
-        const left = Math.min(pts[0][0], pts[1][0]) - REACH;
-        const right = Math.max(pts[0][0], pts[1][0]) + REACH;
-        if (at[0] < left || at[0] > right) return false;
-        return fibLevels(d).some(({ p }) => {
+      case "fib":
+      case "fibext": {
+        const ext = d.kind === "fibext";
+        if (ext && (toSegment(at, pts[0], pts[1]) <= REACH || toSegment(at, pts[1], pts[2]) <= REACH)) return true;
+        const [left, width] = ext ? extSpan(pts) : [Math.min(pts[0][0], pts[1][0]), Math.abs(pts[1][0] - pts[0][0])];
+        if (at[0] < left - REACH || at[0] > left + width + REACH) return false;
+        return (ext ? fibExtLevels(d) : fibLevels(d)).some(({ p }) => {
           const y = this.toY(p);
           return y != null && Math.abs(at[1] - y) <= REACH;
         });
@@ -390,8 +392,13 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         ctx.stroke();
         break;
       case "fib":
-        this.paintFib(ctx, d, a, b, hot);
+        this.paintFib(ctx, fibLevels(d), Math.min(a[0], b[0]), Math.abs(b[0] - a[0]), hot, [a, b]);
         break;
+      case "fibext": {
+        const [left, width] = extSpan(pts);
+        this.paintFib(ctx, fibExtLevels(d), left, width, hot, pts);
+        break;
+      }
       case "text": {
         // The note sits above and right of its point, on a dark backing so it reads over candles
         const text = noteText(d);
@@ -558,10 +565,15 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   }
 
   /** Level lines between the two points, the bands between them shaded, each level labelled with its price. */
-  private paintFib(ctx: CanvasRenderingContext2D, d: Drawing, a: Point, b: Point, hot: boolean) {
-    const left = Math.min(a[0], b[0]);
-    const width = Math.abs(b[0] - a[0]);
-    const levels = fibLevels(d)
+  private paintFib(
+    ctx: CanvasRenderingContext2D,
+    priced: { level: number; p: number }[],
+    left: number,
+    width: number,
+    hot: boolean,
+    swing: Point[],
+  ) {
+    const levels = priced
       .map((l) => ({ ...l, y: this.toY(l.p) }))
       .filter((l): l is { level: number; p: number; y: number } => l.y != null);
 
@@ -589,11 +601,21 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     ctx.strokeStyle = "rgba(253, 248, 234, 0.45)";
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(a[0], a[1]);
-    ctx.lineTo(b[0], b[1]);
+    swing.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     ctx.stroke();
     ctx.setLineDash([]);
   }
+}
+
+/** Each extension level with its price: the swing's size times the level, from the pullback's end. */
+function fibExtLevels(d: Drawing) {
+  const [a, b, c] = d.points;
+  return FIB_EXT_LEVELS.map((level) => ({ level, p: c.p + (b.p - a.p) * level }));
+}
+
+/** An extension's levels start at the pullback's end and run as far right as the swing was wide. */
+function extSpan(pts: Point[]): [number, number] {
+  return [pts[2][0], Math.max(Math.abs(pts[1][0] - pts[0][0]), 40)];
 }
 
 /** Each Fibonacci level of a retracement with its price. */

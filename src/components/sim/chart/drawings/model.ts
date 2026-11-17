@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text" | "ray" | "xline" | "channel";
+export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text" | "ray" | "xline" | "channel" | "fibext";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -24,7 +24,7 @@ export interface Drawing {
  * point's price, a vertical line only its time. A position is its entry, then its target
  * and stop, which share the box's right edge.
  */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1, ray: 2, xline: 2, channel: 3 };
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1, ray: 2, xline: 2, channel: 3, fibext: 3 };
 
 export const TOOL_NAMES: Record<ToolKind, string> = {
   trend: "Trend line",
@@ -39,6 +39,7 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   ray: "Ray",
   xline: "Extended line",
   channel: "Parallel channel",
+  fibext: "Fib extension",
 };
 
 /** Alt plus this letter picks the tool, as on TradingView where they overlap. */
@@ -60,6 +61,12 @@ export const SHORTCUTS: Partial<Record<ToolKind, string>> = {
  */
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618];
 
+/**
+ * Trend-based Fibonacci extension levels: the swing from the first point to the second,
+ * scaled by each level and projected from the third point, where the pullback ended.
+ */
+export const FIB_EXT_LEVELS = [0, 0.618, 1, 1.272, 1.618, 2, 2.618];
+
 const isPosition = (k: ToolKind) => k === "long" || k === "short";
 
 /**
@@ -68,6 +75,10 @@ const isPosition = (k: ToolKind) => k === "long" || k === "short";
  * end, and the stop mirrors the target, one to one, until it is moved.
  */
 export function shape(kind: ToolKind, a: Anchor, b: Anchor): Anchor[] {
+  if (kind === "fibext") {
+    // The pullback starts out halfway back down the swing, half a swing later
+    return [a, b, { t: b.t + (b.t - a.t) / 2, p: b.p - (b.p - a.p) / 2 }];
+  }
   if (kind === "channel") {
     // The parallel line starts half the main line's rise away, on the far side
     return [a, b, { t: a.t, p: a.p - (b.p - a.p) / 2 }];
