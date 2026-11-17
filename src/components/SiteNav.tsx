@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "./Logo";
@@ -64,6 +64,8 @@ function Socials() {
 export function SiteNav() {
   const [hidden, setHidden] = useState(false);
   const [open, setOpen] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
   const path = usePathname();
   const home = path === "/";
   useEffect(() => {
@@ -78,19 +80,36 @@ export function SiteNav() {
     return () => window.removeEventListener("scroll", on);
   }, []);
 
-  // Menu: close on Escape or when the screen grows wide enough for the full bar
+  // Menu: focus moves into it and stays there, Escape or a wider screen closes it,
+  // and closing hands focus back to the menu button
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const button = toggle.current;
+    const menu = sheet.current;
+    const items = () => [button, ...(menu?.querySelectorAll<HTMLElement>("a[href], button") ?? [])].filter(Boolean) as HTMLElement[];
+    const first = requestAnimationFrame(() => items()[1]?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return setOpen(false);
+      if (e.key !== "Tab") return;
+      const list = items();
+      const at = list.indexOf(document.activeElement as HTMLElement);
+      // Wrap around within the menu instead of reaching the page behind it
+      const next = e.shiftKey ? (at <= 0 ? list.length - 1 : at - 1) : at === -1 || at === list.length - 1 ? 0 : at + 1;
+      e.preventDefault();
+      list[next]?.focus();
+    };
     const wide = window.matchMedia("(min-width: 1280px)");
     const onWide = () => wide.matches && setOpen(false);
     window.addEventListener("keydown", onKey);
     wide.addEventListener("change", onWide);
     document.documentElement.style.overflow = "hidden";
     return () => {
+      cancelAnimationFrame(first);
       window.removeEventListener("keydown", onKey);
       wide.removeEventListener("change", onWide);
       document.documentElement.style.overflow = "";
+      const el = document.activeElement;
+      if (!el || el === document.body || menu?.contains(el)) button?.focus();
     };
   }, [open]);
 
@@ -107,6 +126,7 @@ export function SiteNav() {
     >
       {/* Menu for phones and tablets, until the full bar fits: a frosted sheet under the bar */}
       <div
+        ref={sheet}
         id="mobile-menu"
         aria-hidden={!open}
         inert={!open}
@@ -174,6 +194,7 @@ export function SiteNav() {
             Launch<span className="hidden sm:inline"> simulator</span>
           </ConstellationButton>
           <button
+            ref={toggle}
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
