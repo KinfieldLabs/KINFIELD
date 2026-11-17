@@ -6,6 +6,8 @@ import type { OpenResult } from "@/lib/account";
 import type { MarketCtx } from "@/lib/hyperliquid";
 import { checkTpSl, liquidationPx, MAKER_FEE, STRATEGIES, TAKER_FEE, type Side, type Strategy } from "@/lib/sim";
 
+const LEVERAGE_KEY = "kinfield.leverage";
+
 export interface TicketOrder {
   side: Side;
   type: "market" | "limit";
@@ -39,7 +41,20 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
   const [price, setPrice] = useState("");
   const [size, setSize] = useState("1000");
   const [unit, setUnit] = useState<"usd" | "coin">("usd");
-  const [leverage, setLeverage] = useState(5);
+  // New traders start at 1x; after that the ticket remembers the leverage they last chose
+  const [leverage, setLeverageState] = useState(1);
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(LEVERAGE_KEY));
+      if (saved >= 1 && saved <= MAX_LEV) setLeverageState(saved);
+    } catch {}
+  }, []);
+  const setLeverage = (x: number) => {
+    setLeverageState(x);
+    try {
+      localStorage.setItem(LEVERAGE_KEY, String(x));
+    } catch {}
+  };
   const [tpsl, setTpsl] = useState(false);
   const [tp, setTp] = useState("");
   const [sl, setSl] = useState("");
