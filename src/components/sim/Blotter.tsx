@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { MarketFeatures } from "@/lib/features";
 import { fmtDateTime, fmtDuration, fmtNum, fmtPct, fmtPxAt, fmtUsd, tone } from "@/lib/format";
 import type { MarketCtx } from "@/lib/hyperliquid";
@@ -18,6 +18,8 @@ import {
 import { AgentPanel } from "./AgentPanel";
 
 interface Props {
+  /** Changes to this number open the agent tab. */
+  showAgent?: number;
   coin: string;
   positions: Position[];
   orders: Order[];
@@ -50,6 +52,9 @@ const REASONS: Record<ExitReason, { label: string; cls: string }> = {
 export function Blotter(props: Props) {
   const { positions, orders, history } = props;
   const [tab, setTab] = useState<Tab>("positions");
+  useEffect(() => {
+    if (props.showAgent) setTab("agent");
+  }, [props.showAgent]);
 
   const exportData = () => {
     const blob = new Blob([toJsonl(history)], { type: "application/x-ndjson" });

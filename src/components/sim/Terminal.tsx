@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { useLedger, useMe, type Ledger } from "@/lib/account";
@@ -9,7 +9,7 @@ import { fmtPct, fmtUsd, tone } from "@/lib/format";
 import { useAllMids, useAssetCtx, useHlStatus } from "@/lib/hl-socket";
 import { fetchCandles, fetchMarkets, INTERVALS, type Candle, type Interval, type MarketCtx } from "@/lib/hyperliquid";
 import { readiness } from "@/lib/readiness";
-import { limitCrossed, margin, reserved, triggerHit, unrealized } from "@/lib/sim";
+import { limitCrossed, margin, reserved, triggerHit, unrealized, type ClosedTrade } from "@/lib/sim";
 import { trackStats } from "@/lib/stats";
 import { AccountChip } from "./AccountChip";
 import { SharingPrompt, SharingSettings } from "./DataSharing";
@@ -19,6 +19,7 @@ import { OrderBook } from "./OrderBook";
 import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
 import { Guide, guideSeen } from "./Guide";
+import { Recorded } from "./Recorded";
 
 /** A small preference remembered in this browser (market, chart interval). */
 function useRemembered<T extends string>(key: string, initial: T, valid: (v: string) => boolean = () => true) {
@@ -44,12 +45,28 @@ export function Terminal() {
   const [sharingOpen, setSharingOpen] = useState(false);
   // The guide opens by itself on a first visit and from the header after that
   const [guideOpen, setGuideOpen] = useState(false);
+  // A trade that closes while you're here gets a card saying what it recorded
+  const [recorded, setRecorded] = useState<ClosedTrade | null>(null);
+  const [showAgent, setShowAgent] = useState(0);
+  const knownTrades = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!guideSeen()) setGuideOpen(true);
   }, []);
   const ledger = useLedger(!!me?.user);
   const { state, fire, poke } = ledger;
   const ready = !!me && ledger.ready;
+  useEffect(() => {
+    if (!ready) return;
+    const ids = state.history.map((t) => t.id);
+    // The trades already there when the page loads are known; only new closes get a card
+    if (!knownTrades.current) {
+      knownTrades.current = new Set(ids);
+      return;
+    }
+    const fresh = state.history.filter((t) => !knownTrades.current!.has(t.id));
+    ids.forEach((id) => knownTrades.current!.add(id));
+    if (fresh.length) setRecorded(fresh.reduce((a, b) => (b.closedAt > a.closedAt ? b : a)));
+  }, [ready, state.history]);
   const status = useHlStatus();
 
   const [coin, setCoin] = useRemembered<string>("kinfield.coin", "BTC", (v) => /^[A-Za-z0-9]{1,20}$/.test(v));
@@ -161,6 +178,19 @@ export function Terminal() {
       </header>
 
       <Guide open={guideOpen} onClose={() => setGuideOpen(false)} />
+      {recorded && (
+        <Recorded
+          trade={recorded}
+          examples={state.history.filter((t) => t.entryFeatures).length}
+          signedIn={ledger.mode === "account"}
+          onAgent={() => {
+            setShowAgent((n) => n + 1);
+            setRecorded(null);
+            document.querySelector('[data-guide="blotter"]')?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }}
+          onClose={() => setRecorded(null)}
+        />
+      )}
       <div data-guide="market">
       <MarketBar coin={coin} markets={markets} live={live} price={mid} status={status} onPick={selectCoin} />
       </div>
@@ -245,6 +275,7 @@ export function Terminal() {
             features={features}
             guest={ledger.mode === "guest"}
             agentName={me?.user?.sharing.agentId}
+            showAgent={showAgent}
             onSelectCoin={selectCoin}
             onClose={async (p) => {
               if (prices[p.coin]) setNotice(await ledger.close(p, prices[p.coin]));
