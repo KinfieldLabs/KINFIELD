@@ -178,6 +178,13 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
           </button>
         ))}
       </div>
+      <p className="-mt-1 text-[11px] leading-snug text-muted">
+        {type === "market"
+          ? guest
+            ? "Fills now at the live price. Limit orders, which wait for a price you set, need sign in so our server can fill them."
+            : "Fills now at the live price."
+          : "Waits until the price reaches your limit, then fills there. You can cancel it until then."}
+      </p>
 
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-navy-950/60 p-1">
         {(["long", "short"] as Side[]).map((s) => (
@@ -294,7 +301,7 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] text-muted">Strategy: teaches the agent your intent</span>
+        <span className="text-[11px] text-muted">Strategy: recorded with the trade</span>
         <div className="flex flex-wrap gap-1">
           {STRATEGIES.map((s) => (
             <button
@@ -320,6 +327,9 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
           placeholder="e.g. Reclaimed the hourly high on rising volume"
           className="field resize-none font-sans"
         />
+        <span className="text-[10.5px] leading-snug text-muted/90">
+          Saved with the trade and private unless you share reasons. Your agent doesn&apos;t learn from it yet.
+        </span>
       </label>
 
       <dl className="grid grid-cols-2 gap-y-1 text-[11px]">
