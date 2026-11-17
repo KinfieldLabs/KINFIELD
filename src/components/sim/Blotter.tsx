@@ -26,6 +26,8 @@ interface Props {
   markets: Record<string, MarketCtx>;
   features: MarketFeatures | null;
   guest: boolean;
+  /** The signed-in user's agent, e.g. KIN001. */
+  agentName?: string;
   onSelectCoin: (coin: string) => void;
   onClose: (p: Position) => Promise<void>;
   onCancel: (o: Order) => Promise<void>;
@@ -63,7 +65,7 @@ export function Blotter(props: Props) {
     ["positions", `Positions (${positions.length})`],
     ["orders", `Open orders (${orders.length})`],
     ["history", `Trade history (${history.length})`],
-    ["agent", "Apprentice"],
+    ["agent", props.agentName ? `Agent ${props.agentName}` : "Your agent"],
   ];
 
   return (
@@ -88,7 +90,7 @@ export function Blotter(props: Props) {
         {tab === "positions" && <Positions {...props} />}
         {tab === "orders" && <Orders {...props} />}
         {tab === "history" && <History {...props} />}
-        {tab === "agent" && <AgentPanel coin={props.coin} history={history} features={props.features} bare />}
+        {tab === "agent" && <AgentPanel coin={props.coin} history={history} features={props.features} agentName={props.agentName} bare />}
       </div>
     </div>
   );

@@ -158,7 +158,7 @@ function Report({ data, reload }: { data: Evaluation; reload: () => void }) {
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.08em] text-muted">Your record, as its teacher</p>
-          <h1 className="num mt-1 text-2xl text-cream">{data.agentId}</h1>
+          <h1 className="num mt-1 text-2xl text-cream">Agent {data.agentId}</h1>
           <p className="mt-1 text-sm text-mist">
             Judged on the verified ledger of your current account, opened {fmtDateTime(active.createdAt)}.
           </p>
@@ -208,7 +208,7 @@ function Report({ data, reload }: { data: Evaluation; reload: () => void }) {
 
       <Attempts accounts={data.accounts} />
 
-      <Autonomous a={data.autonomous} reload={reload} />
+      <Autonomous a={data.autonomous} name={data.agentId} reload={reload} />
 
       <section className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
         <span>
@@ -399,8 +399,8 @@ const REASON_LABEL: Record<string, string> = {
   time_stop: "Time limit",
 };
 
-/** The apprentice trading on its own account, judged by the same checks. */
-function Autonomous({ a, reload }: { a: AutonomousTrial; reload: () => void }) {
+/** The agent trading on its own account, judged by the same checks. */
+function Autonomous({ a, name, reload }: { a: AutonomousTrial; name: string; reload: () => void }) {
   const [busy, setBusy] = useState(false);
   const toggle = async () => {
     setBusy(true);
@@ -421,7 +421,7 @@ function Autonomous({ a, reload }: { a: AutonomousTrial; reload: () => void }) {
         <div className="max-w-2xl">
           <h2 className="text-lg tracking-[-0.01em]">Trading on its own</h2>
           <p className="mt-1 text-sm leading-relaxed text-mist">
-            Your apprentice trades its own simulated account, with no one placing its orders. Every 15 minutes it looks
+            {name} trades its own simulated account, with no one placing its orders. Every 15 minutes it looks
             at your {r.markets} most-traded markets and acts only when it is at least {pctOf(r.confidence)} confident,
             risking {pctOf(r.riskPerTrade)} of its account with a stop loss and a target {r.rewardToRisk}x as far away.
             Positions close after {r.maxHoldHours} hours at the latest.

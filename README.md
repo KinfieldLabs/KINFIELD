@@ -32,7 +32,7 @@ before deploying the code that needs them; the live release keeps working in bet
   - Market and limit orders, take profit / stop loss, leverage up to 20x, maker and taker fees, liquidation
   - Positions, open orders and trade history (with why each trade ended), drawn on the chart
   - Strategy tags and a reason for each trade
-  - **Apprentice agent**: a logistic-regression policy trained in the browser on your closed trades
+  - **Your agent**: a logistic-regression policy trained in the browser on your closed trades
   - Export the trade log as JSONL (context → action → intent → outcome)
   - Guest mode keeps trades in the browser (market orders only); signing in uses the verified ledger
 
@@ -62,9 +62,16 @@ and win rate (55%, one signal among the others). Every account, including archiv
 The checks live in `src/lib/readiness.ts` and are published with each account in the open dataset.
 Real-capital funding is not offered.
 
+## Agent names
+
+Every signed-in person's agent is named in Kinfield's own series, `KIN001`, `KIN002` and on, in the order
+they signed up (`users.agent_id`, migration `005`). Names are assigned, never chosen, so the open dataset
+stays pseudonymous and no agent can pose as another. Sign-in updates returning users before inserting, so
+only a first sign-in takes a number.
+
 ## The agent trading on its own
 
-Once a person has closed 30 trades with market context, their apprentice trades its own simulated
+Once a person has closed 30 trades with market context, their agent trades its own simulated
 account (`/api/cron/agents`, every 15 minutes, in `vercel.json`). Each run it retrains daily on the person's
 trades, closes positions held over 24 hours, and in their three most-traded markets acts only at 60%
 confidence or more, risking 1% of its account (capped at 1x equity per position) with a volatility-scaled
@@ -75,7 +82,7 @@ checks on `/agent`, and are published as `autonomous.jsonl`. Rules live in `src/
 
 Users who choose to share (asked once after sign-in; nothing is published before that) are
 published nightly to [KinfieldLabs/kinfield-datasets](https://github.com/KinfieldLabs/kinfield-datasets)
-under a pseudonymous agent id:
+under their agent's KIN name:
 
 - `agents/<agent>/trades.jsonl`: closed trades (context, action, intent, outcome)
 - `agents/<agent>/ledger/<account>.jsonl`: the hash chain every trade is checked against

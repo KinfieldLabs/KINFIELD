@@ -33,9 +33,19 @@ interface GithubProfile {
   avatar_url: string | null;
 }
 
-/** Creates or refreshes the user for a GitHub profile. */
+/**
+ * Creates or refreshes the user for a GitHub profile. Returning users are updated
+ * first, so only a first sign-in inserts: an insert takes the next KIN agent number
+ * even when it ends up updating, which would leave gaps on every sign-in.
+ */
 export async function upsertUser(p: GithubProfile): Promise<string> {
-  const [row] = await db()`
+  const sql = db();
+  const [known] = await sql`
+    update users set login = ${p.login}, name = ${p.name}, avatar_url = ${p.avatar_url}
+    where github_id = ${p.id}
+    returning id`;
+  if (known) return known.id;
+  const [row] = await sql`
     insert into users (github_id, login, name, avatar_url)
     values (${p.id}, ${p.login}, ${p.name}, ${p.avatar_url})
     on conflict (github_id) do update

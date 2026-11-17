@@ -10,11 +10,13 @@ interface Props {
   coin: string;
   history: ClosedTrade[];
   features: MarketFeatures | null;
+  /** The signed-in user's agent, e.g. KIN001; guests just have "your agent". */
+  agentName?: string;
   /** Inside another panel: no frame, no export button. */
   bare?: boolean;
 }
 
-export function AgentPanel({ coin, history, features, bare = false }: Props) {
+export function AgentPanel({ coin, history, features, agentName, bare = false }: Props) {
   const model = useMemo(() => trainAgent(history), [history]);
   const pLong = model && features ? predict(model, features) : null;
   const labeled = history.filter((t) => t.entryFeatures).length;
@@ -35,7 +37,7 @@ export function AgentPanel({ coin, history, features, bare = false }: Props) {
     <div className={bare ? "flex max-w-2xl flex-col gap-4 p-4" : "panel flex flex-col gap-4 p-4"}>
       <div className="flex items-center gap-2">
         <Mark className="h-4 w-4 text-cyan" />
-        <h3 className="text-sm font-semibold">Apprentice agent</h3>
+        <h3 className="text-sm font-semibold">{agentName ? `Agent ${agentName}` : "Your agent"}</h3>
         <span className="ml-auto rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">
           {labeled} example{labeled === 1 ? "" : "s"}
         </span>

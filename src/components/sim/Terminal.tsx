@@ -232,6 +232,7 @@ export function Terminal() {
             markets={markets}
             features={features}
             guest={ledger.mode === "guest"}
+            agentName={me?.user?.sharing.agentId}
             onSelectCoin={selectCoin}
             onClose={async (p) => {
               if (prices[p.coin]) setNotice(await ledger.close(p, prices[p.coin]));

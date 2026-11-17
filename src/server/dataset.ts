@@ -48,7 +48,9 @@ export interface AgentIndexRow {
 export interface DatasetBuild {
   agents: AgentBuild[];
   /** Agents that stopped sharing after being published: their folders are removed. */
-  withdrawn: { userId: string; agentId: string }[];
+  withdrawn: { userId: string; agentId: string; formerAgentId: string | null }[];
+  /** Agents published under an old id (before KIN names): their old folder is removed. */
+  renamed: { userId: string; from: string; to: string }[];
   root: Files;
 }
 
@@ -217,9 +219,12 @@ async function buildAgent(sql: postgres.Sql, u: Row): Promise<AgentBuild | null>
 
 export async function buildDataset(): Promise<DatasetBuild> {
   const sql = db();
-  const sharing = await sql`select * from users where publish_data and publish_decided_at is not null order by agent_id`;
+  // length first, so KIN999 comes before KIN1000
+  const sharing = await sql`
+    select * from users where publish_data and publish_decided_at is not null
+    order by length(agent_id), agent_id`;
   const withdrawnRows = await sql`
-    select id, agent_id from users
+    select * from users
     where dataset_hash is not null and not (publish_data and publish_decided_at is not null)`;
 
   const agents: AgentBuild[] = [];
@@ -227,13 +232,23 @@ export async function buildDataset(): Promise<DatasetBuild> {
     const a = await buildAgent(sql, u);
     if (a) agents.push(a);
   }
-  const index = agents.map((a) => a.index).sort((x, y) => y.trades - x.trades || x.agent.localeCompare(y.agent));
+  const index = agents
+    .map((a) => a.index)
+    .sort((x, y) => y.trades - x.trades || x.agent.length - y.agent.length || x.agent.localeCompare(y.agent));
 
   const root: Files = new Map();
   root.set("agents.json", JSON.stringify(index, null, 2) + "\n");
   root.set("README.md", readme(index));
   root.set("verify.mjs", readFileSync(join(process.cwd(), "dataset", "verify.mjs"), "utf8"));
-  return { agents, withdrawn: withdrawnRows.map((r) => ({ userId: r.id, agentId: r.agent_id })), root };
+  return {
+    agents,
+    // former_agent_id is read loosely so this keeps working before migration 005 has run
+    withdrawn: withdrawnRows.map((r) => ({ userId: r.id, agentId: r.agent_id, formerAgentId: r.former_agent_id ?? null })),
+    renamed: sharing
+      .filter((u) => u.former_agent_id)
+      .map((u) => ({ userId: u.id, from: u.former_agent_id, to: u.agent_id })),
+    root,
+  };
 }
 
 function readme(index: AgentIndexRow[]): string {
@@ -264,7 +279,9 @@ All trading here is simulated. No real funds are involved. Nothing in this repos
 | \`agents/<agent>/ledger/<account>.jsonl\` | The hash-chained record every trade is checked against |
 | \`verify.mjs\` | Checks all of the above, with no dependencies |
 
-Agents are pseudonymous (\`agent-…\`). A GitHub username appears only when its owner chose to show it.
+Agents are named in Kinfield's own series (\`KIN001\`, \`KIN002\`, …) in the order their owners signed up.
+Names are assigned, never chosen, so agents stay pseudonymous. A GitHub username appears only when its
+owner chose to show it.
 Written reasons for trades are private by default: only a salted commitment is published, unless
 the owner chose to share their reasons.
 
@@ -307,7 +324,9 @@ node verify.mjs
 
 Every ledger entry commits to the one before it, starting from \`sha256("kinfield:<account id>")\`.
 Each publish is a commit here, so an older version of a ledger file must always be a prefix of
-a newer one: anything else would mean the record was rewritten.
+a newer one: anything else would mean the record was rewritten. Ledger files are named by account
+id, which never changes, so a ledger can be followed across a folder rename too (agents moved from
+\`agent-…\` ids to KIN names in one publish, whose commit message lists each move).
 
 ## License
 

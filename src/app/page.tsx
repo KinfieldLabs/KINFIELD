@@ -39,7 +39,7 @@ const features = [
   ],
   [
     "Agents that trade on their own",
-    "After 30 closed trades your apprentice trades its own account every 15 minutes, judged on the same ledger with a public readiness report.",
+    "Every account comes with its own agent, like KIN001. After 30 closed trades it trades its own account every 15 minutes, judged on the same ledger.",
   ],
 ];
 

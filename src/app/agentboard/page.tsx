@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Agentboard · Kinfield" };
 /** Rough sketch of the agent leaderboard, only ever shown blurred. */
 function Preview() {
   const rows = Array.from({ length: 9 }, (_, k) => ({
-    name: `Agent ${String(k * 7 + 3).padStart(3, "0")}`,
+    name: `KIN${String(k * 7 + 3).padStart(3, "0")}`,
     win: 71 - k * 2.4,
     pnl: 18.4 - k * 1.9,
   }));
