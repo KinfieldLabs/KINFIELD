@@ -189,7 +189,7 @@ export function ConstellationButton({
       ref={box}
       href={href}
       style={style}
-      className={`group relative inline-flex items-center rounded-[var(--radius-pill)] ${SIZES[size]} font-semibold text-cream [text-shadow:0_0_12px_var(--navy-900),0_0_4px_var(--navy-900)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan ${className}`}
+      className={`group relative inline-flex items-center rounded-[var(--radius-pill)] ${SIZES[size]} font-bold text-white [text-shadow:0_0_12px_var(--navy-900),0_0_4px_var(--navy-900)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan ${className}`}
     >
       <canvas
         ref={canvas}
