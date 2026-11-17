@@ -1,8 +1,8 @@
 import { LineStyle } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
-import { bollinger, ema, endsDay, sma, vwap, type Line } from "@/lib/indicators";
+import { bollinger, ema, endsDay, rsi, sma, vwap, type Line } from "@/lib/indicators";
 
-export type StudyKind = "ma" | "ema" | "bb" | "vwap";
+export type StudyKind = "ma" | "ema" | "bb" | "vwap" | "rsi";
 
 /** An indicator on the chart. */
 export interface Study {
@@ -46,6 +46,16 @@ export interface StudyDef {
   fill?: { from: string; to: string };
   /** Whether the lines break after bar i instead of joining it to the next, as at a reset. */
   breaksAfter?(bars: readonly Candle[], i: number): boolean;
+  /** Drawn in its own pane under the candles instead of over them. */
+  pane?: boolean;
+  /** Reference levels drawn across the pane, e.g. RSI 70 and 30. */
+  levels?: number[];
+  /** Shades the area between two levels. */
+  levelBand?: [number, number];
+  /** Fixed scale for an oscillator with known bounds. */
+  range?: [number, number];
+  /** Decimals for values that aren't prices. */
+  decimals?: number;
 }
 
 /**
@@ -124,6 +134,21 @@ export const STUDIES: Record<StudyKind, StudyDef> = {
     lines: single("vwap"),
     compute: (bars) => ({ vwap: vwap(bars) }),
     breaksAfter: endsDay,
+  },
+  rsi: {
+    kind: "rsi",
+    name: "Relative Strength Index",
+    short: "RSI",
+    blurb: "Momentum from 0 to 100; above 70 often reads as overbought, below 30 as oversold",
+    group: "Momentum",
+    params: [{ label: "Length", value: 14, min: 2, max: 200 }],
+    lines: single("rsi"),
+    compute: (bars, [n]) => ({ rsi: rsi(closes(bars), n) }),
+    pane: true,
+    levels: [70, 50, 30],
+    levelBand: [30, 70],
+    range: [0, 100],
+    decimals: 2,
   },
 };
 

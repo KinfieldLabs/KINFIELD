@@ -22,10 +22,13 @@ export function Swatch({ slot, wide = false }: { slot: number; wide?: boolean })
 /** Settings for one indicator: its parameters and color. Changes apply as you make them. */
 export function StudySettings({
   study,
+  up = false,
   onChange,
   onClose,
 }: {
   study: Study;
+  /** Opens above its row instead of below. */
+  up?: boolean;
   onChange: (patch: Partial<Pick<Study, "params" | "slot">>) => void;
   onClose: () => void;
 }) {
@@ -60,7 +63,7 @@ export function StudySettings({
       ref={box}
       role="dialog"
       aria-label={`${studyLabel(study)} settings`}
-      className="absolute left-0 top-full z-30 mt-1 w-64 rounded-xl border border-line bg-navy-900/95 p-3 font-sans shadow-xl shadow-black/40 backdrop-blur"
+      className={`absolute left-0 z-30 w-64 rounded-xl ${up ? "bottom-full mb-1" : "top-full mt-1"} border border-line bg-navy-900/95 p-3 font-sans shadow-xl shadow-black/40 backdrop-blur`}
     >
       <div className="mb-2 text-xs text-cream">{def.name}</div>
       {def.params.map((p, i) => {

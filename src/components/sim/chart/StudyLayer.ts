@@ -1,24 +1,32 @@
-import { LineSeries, type IChartApi, type ISeriesApi, type LineData, type UTCTimestamp } from "lightweight-charts";
+import {
+  LineSeries,
+  LineStyle,
+  type IChartApi,
+  type ISeriesApi,
+  type LineData,
+  type PriceFormat,
+  type UTCTimestamp,
+} from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
 import type { Line } from "@/lib/indicators";
-import { BandFill, withAlpha } from "./BandFill";
-import { slotColor, STUDIES, type Study } from "./studies";
+import { BandFill, LevelBand, withAlpha } from "./BandFill";
+import { slotColor, STUDIES, type Study, type StudyDef } from "./studies";
 
 interface Entry {
   study: Study;
-  /** What the series were built for; a change rebuilds them. */
-  sig: string;
   series: Map<string, ISeriesApi<"Line">>;
   values: Record<string, Line>;
 }
 
-const sec = (ms: number) => (ms / 1000) as UTCTimestamp;
-const sigOf = (s: Study) => `${s.kind}:${s.params.join(",")}:${s.slot}`;
-
+/** Height of a new indicator pane under the candles, in pixels. */
+const PANE_HEIGHT = 110;
+const LEVEL_COLOR = "rgba(142, 163, 207, 0.45)";
 /** The library strokes each segment in its starting point's color, so a clear point ends the line there. */
 const BREAK = "rgba(0, 0, 0, 0)";
 
-function toData(bars: readonly Candle[], line: Line, breaksAfter?: (bars: readonly Candle[], i: number) => boolean): LineData[] {
+const sec = (ms: number) => (ms / 1000) as UTCTimestamp;
+
+function toData(bars: readonly Candle[], line: Line, breaksAfter?: StudyDef["breaksAfter"]): LineData[] {
   const out: LineData[] = [];
   for (let i = 0; i < bars.length; i++) {
     const v = line[i];
@@ -38,24 +46,32 @@ export class StudyLayer {
 
   constructor(private chart: IChartApi) {}
 
-  /** Makes the series on the chart match the list, filling new ones from the bars. */
+  /**
+   * Makes the chart match the list. Settings changes update the existing series in
+   * place, so an indicator keeps its pane and position.
+   */
   sync(studies: readonly Study[], bars: readonly Candle[]) {
     for (const [id, e] of this.entries) {
-      const s = studies.find((x) => x.id === id);
-      if (!s || sigOf(s) !== e.sig) {
+      if (!studies.some((s) => s.id === id)) {
         e.series.forEach((series) => this.chart.removeSeries(series));
         this.entries.delete(id);
       }
     }
     for (const s of studies) {
-      let e = this.entries.get(s.id);
+      const e = this.entries.get(s.id);
       if (!e) {
-        e = this.build(s);
-        this.entries.set(s.id, e);
-        this.fill(e, bars);
+        const built = this.build(s);
+        this.entries.set(s.id, built);
+        this.fill(built, bars);
+        continue;
       }
+      const prev = e.study;
       e.study = s;
-      e.series.forEach((series) => series.applyOptions({ visible: !s.hidden }));
+      if (prev.params.join() !== s.params.join()) this.fill(e, bars);
+      if (prev.slot !== s.slot) {
+        for (const line of STUDIES[s.kind].lines(s)) e.series.get(line.key)?.applyOptions({ color: line.color, lineStyle: line.style });
+      }
+      if (!!prev.hidden !== !!s.hidden) e.series.forEach((series) => series.applyOptions({ visible: !s.hidden }));
     }
   }
 
@@ -86,9 +102,18 @@ export class StudyLayer {
     return this.entries.get(id)?.values[key]?.[i] ?? null;
   }
 
+  /** The table row of an indicator's own pane, for placing its legend. */
+  paneElement(id: string): HTMLElement | null {
+    const first = this.entries.get(id)?.series.values().next().value;
+    return first ? first.getPane().getHTMLElement() : null;
+  }
+
   setPrecision(precision: number) {
     this.precision = precision;
-    this.entries.forEach((e) => e.series.forEach((s) => s.applyOptions({ priceFormat: this.priceFormat() })));
+    for (const e of this.entries.values()) {
+      const def = STUDIES[e.study.kind];
+      if (def.decimals == null) e.series.forEach((s) => s.applyOptions({ priceFormat: this.formatFor(def) }));
+    }
   }
 
   /** Hidden while the chart is scrolled back in history, like the candles' own label. */
@@ -97,37 +122,51 @@ export class StudyLayer {
     this.entries.forEach((e) => e.series.forEach((s) => s.applyOptions({ lastValueVisible: visible })));
   }
 
-  private priceFormat() {
-    return { type: "price" as const, precision: this.precision, minMove: 10 ** -this.precision };
+  private formatFor(def: StudyDef): PriceFormat {
+    const d = def.decimals ?? this.precision;
+    return { type: "price", precision: d, minMove: 10 ** -d };
   }
 
   private build(s: Study): Entry {
     const def = STUDIES[s.kind];
     const series = new Map<string, ISeriesApi<"Line">>();
-    const entry: Entry = { study: s, sig: sigOf(s), series, values: {} };
+    const entry: Entry = { study: s, series, values: {} };
+    const paneIndex = def.pane ? this.chart.panes().length : 0;
+    const range = def.range;
+
     for (const line of def.lines(s)) {
       series.set(
         line.key,
-        this.chart.addSeries(LineSeries, {
-          color: line.color,
-          lineWidth: line.width ?? 2,
-          lineStyle: line.style,
-          priceLineVisible: false,
-          lastValueVisible: this.lastValueVisible,
-          crosshairMarkerVisible: false,
-          priceFormat: this.priceFormat(),
-          visible: !s.hidden,
-        }),
-      );
-    }
-    const fill = def.fill;
-    if (fill) {
-      series.get(fill.from)?.attachPrimitive(
-        new BandFill(
-          () => ({ upper: entry.values[fill.from] ?? [], lower: entry.values[fill.to] ?? [] }),
-          withAlpha(slotColor(s.slot), 0.1),
+        this.chart.addSeries(
+          LineSeries,
+          {
+            color: line.color,
+            lineWidth: line.width ?? 2,
+            lineStyle: line.style,
+            priceLineVisible: false,
+            lastValueVisible: this.lastValueVisible,
+            crosshairMarkerVisible: false,
+            priceFormat: this.formatFor(def),
+            visible: !s.hidden,
+            ...(range && { autoscaleInfoProvider: () => ({ priceRange: { minValue: range[0], maxValue: range[1] } }) }),
+          },
+          paneIndex,
         ),
       );
+    }
+    if (def.pane) this.chart.panes()[paneIndex]?.setHeight(PANE_HEIGHT);
+
+    const first = series.values().next().value;
+    const color = (alpha: number) => () => withAlpha(slotColor(entry.study.slot), alpha);
+    for (const price of def.levels ?? []) {
+      first?.createPriceLine({ price, color: LEVEL_COLOR, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false });
+    }
+    if (def.levelBand) first?.attachPrimitive(new LevelBand(def.levelBand, color(0.07)));
+    const fill = def.fill;
+    if (fill) {
+      series
+        .get(fill.from)
+        ?.attachPrimitive(new BandFill(() => ({ upper: entry.values[fill.from] ?? [], lower: entry.values[fill.to] ?? [] }), color(0.1)));
     }
     return entry;
   }

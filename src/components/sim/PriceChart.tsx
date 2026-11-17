@@ -24,8 +24,8 @@ import { fetchCandles, fetchCandlesBefore, INTERVAL_MS, INTERVALS, type Candle, 
 import { liquidationPx, type ClosedTrade, type Order, type Position } from "@/lib/sim";
 import { IndicatorMenu } from "./chart/IndicatorMenu";
 import { StudyLayer } from "./chart/StudyLayer";
-import { StudySettings, Swatch } from "./chart/StudySettings";
-import { STUDIES, studyLabel } from "./chart/studies";
+import { StudyRow } from "./chart/StudyRow";
+import { STUDIES, type Study } from "./chart/studies";
 import { useStudies } from "./chart/useStudies";
 
 interface Props {
@@ -117,6 +117,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         fontFamily: "var(--font-geist-mono), monospace",
         fontSize: 11,
         attributionLogo: false,
+        panes: { separatorColor: "rgba(120,170,255,0.14)", separatorHoverColor: "rgba(63,200,240,0.16)" },
       },
       grid: { vertLines: { color: "rgba(120,170,255,0.06)" }, horzLines: { color: "rgba(120,170,255,0.06)" } },
       rightPriceScale: { borderColor: "rgba(120,170,255,0.14)", scaleMargins: { top: 0.08, bottom: 0.22 } },
@@ -283,6 +284,38 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     studyLayer.current?.sync(studies, bars.current);
   }, [studies]);
 
+  // Where each indicator pane starts, for its legend. Panes shift as they're added, removed or resized.
+  const [paneTops, setPaneTops] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const layer = studyLayer.current;
+    const root = el.current;
+    if (!layer || !root) return;
+    const paned = studies.filter((s) => STUDIES[s.kind].pane);
+    const measure = () => {
+      const base = root.getBoundingClientRect().top;
+      const tops: Record<string, number> = {};
+      for (const s of paned) {
+        const row = layer.paneElement(s.id);
+        if (row) tops[s.id] = row.getBoundingClientRect().top - base;
+      }
+      setPaneTops(tops);
+    };
+    const ro = new ResizeObserver(measure);
+    // New panes get their elements when the chart next draws
+    const frame = requestAnimationFrame(() => {
+      measure();
+      ro.observe(root);
+      chart.current?.panes().forEach((p) => {
+        const row = p.getHTMLElement();
+        if (row) ro.observe(row);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [studies]);
+
   // Levels: entries, liquidation, take profit, stop loss, resting orders
   useEffect(() => {
     const s = candles.current;
@@ -334,6 +367,20 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const ref = legend?.c ?? 1;
   const chg = legend ? legend.c / legend.o - 1 : 0;
   const idx = hoverIdx ?? bars.current.length - 1;
+  const rowProps = (s: Study) => {
+    const decimals = STUDIES[s.kind].decimals;
+    return {
+      study: s,
+      value: (key: string) => studyLayer.current?.valueAt(s.id, key, idx) ?? null,
+      format: (v: number) => (decimals != null ? v.toFixed(decimals) : fmtPxAt(v, ref)),
+      settingsOpen: settingsFor === s.id,
+      onSettings: () => setSettingsFor((id) => (id === s.id ? null : s.id)),
+      onCloseSettings: closeSettings,
+      onToggle: () => toggle(s.id),
+      onRemove: () => remove(s.id),
+      onUpdate: (patch: Partial<Pick<Study, "params" | "slot">>) => update(s.id, patch),
+    };
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -382,69 +429,25 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
               <span className={tone(chg)}>{fmtPct(chg)}</span>
               <span>Vol {fmtCompact(legend.v * legend.c)}</span>
             </div>
-            {studies.map((s) => {
-              const label = studyLabel(s);
-              const lines = STUDIES[s.kind].lines(s);
-              return (
-                <div key={s.id} className="group pointer-events-auto relative -mx-1 flex items-center gap-1.5 rounded px-1 hover:bg-navy-900/80">
-                  <Swatch slot={s.slot} />
-                  <span className={s.hidden ? "opacity-50" : ""}>{label}</span>
-                  {!s.hidden &&
-                    lines.map((l) => {
-                      const v = studyLayer.current?.valueAt(s.id, l.key, idx);
-                      return v == null ? null : (
-                        <span key={l.key} className="text-cream">
-                          {fmtPxAt(v, ref)}
-                        </span>
-                      );
-                    })}
-                  <span
-                    className={`flex items-center transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100 ${
-                      settingsFor === s.id ? "opacity-100" : "opacity-0"
-                    }`}
-                  >
-                    <button
-                      onClick={() => toggle(s.id)}
-                      aria-label={`${s.hidden ? "Show" : "Hide"} ${label}`}
-                      title={s.hidden ? "Show" : "Hide"}
-                      className="rounded p-0.5 hover:text-cream"
-                    >
-                      <EyeIcon off={!!s.hidden} />
-                    </button>
-                    <button
-                      // Toggles: keep the press from counting as a click outside the open settings
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={() => setSettingsFor((id) => (id === s.id ? null : s.id))}
-                      aria-label={`${label} settings`}
-                      aria-expanded={settingsFor === s.id}
-                      title="Settings"
-                      className="rounded p-0.5 hover:text-cream"
-                    >
-                      <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden>
-                        <path d="M2 4.5h12M2 11.5h12" strokeLinecap="round" />
-                        <circle cx="5.5" cy="4.5" r="1.8" className="fill-navy-900" />
-                        <circle cx="10.5" cy="11.5" r="1.8" className="fill-navy-900" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => remove(s.id)}
-                      aria-label={`Remove ${label}`}
-                      title="Remove"
-                      className="rounded p-0.5 hover:text-cream"
-                    >
-                      <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-                        <path d="M3 3l6 6M9 3l-6 6" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  </span>
-                  {settingsFor === s.id && (
-                    <StudySettings study={s} onChange={(patch) => update(s.id, patch)} onClose={closeSettings} />
-                  )}
-                </div>
-              );
-            })}
+            {studies
+              .filter((s) => !STUDIES[s.kind].pane)
+              .map((s) => (
+                <StudyRow key={s.id} {...rowProps(s)} />
+              ))}
           </div>
         )}
+        {legend &&
+          studies
+            .filter((s) => STUDIES[s.kind].pane && paneTops[s.id] != null)
+            .map((s) => (
+              <div
+                key={s.id}
+                className="pointer-events-none absolute left-2 z-10 font-mono text-[11px] text-muted"
+                style={{ top: paneTops[s.id] + 4 }}
+              >
+                <StudyRow {...rowProps(s)} settingsUp />
+              </div>
+            ))}
         {!atLatest && !loading && (
           <button
             onClick={toLatest}
@@ -465,15 +468,5 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         )}
       </div>
     </div>
-  );
-}
-
-function EyeIcon({ off }: { off: boolean }) {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden>
-      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
-      <circle cx="8" cy="8" r="2" />
-      {off && <path d="M2.5 13.5l11-11" strokeLinecap="round" />}
-    </svg>
   );
 }

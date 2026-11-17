@@ -13,17 +13,18 @@ import type { Line } from "@/lib/indicators";
 
 type Target = Parameters<IPrimitivePaneRenderer["draw"]>[0];
 
-/** Shades the area between two lines of an indicator, under the candles. */
-export class BandFill implements ISeriesPrimitive<Time> {
-  private chart: IChartApi | null = null;
-  private series: ISeriesApi<SeriesType> | null = null;
+/** Base for shading drawn under a series, behind the candles. */
+abstract class Shade implements ISeriesPrimitive<Time> {
+  protected chart: IChartApi | null = null;
+  protected series: ISeriesApi<SeriesType> | null = null;
   private readonly views: readonly IPrimitivePaneView[];
 
-  constructor(
-    private readonly lines: () => { upper: Line; lower: Line },
-    private readonly color: string,
-  ) {
-    const renderer: IPrimitivePaneRenderer = { draw: (target) => this.draw(target) };
+  constructor(protected readonly color: () => string) {
+    const renderer: IPrimitivePaneRenderer = {
+      draw: (target) => {
+        if (this.chart && this.series?.options().visible) this.draw(target, this.chart, this.series);
+      },
+    };
     this.views = [{ zOrder: () => "bottom", renderer: () => renderer }];
   }
 
@@ -40,9 +41,19 @@ export class BandFill implements ISeriesPrimitive<Time> {
     return this.views;
   }
 
-  private draw(target: Target) {
-    const { chart, series } = this;
-    if (!chart || !series || !series.options().visible) return;
+  protected abstract draw(target: Target, chart: IChartApi, series: ISeriesApi<SeriesType>): void;
+}
+
+/** Shades the area between two lines of an indicator, such as Bollinger Bands. */
+export class BandFill extends Shade {
+  constructor(
+    private readonly lines: () => { upper: Line; lower: Line },
+    color: () => string,
+  ) {
+    super(color);
+  }
+
+  protected draw(target: Target, chart: IChartApi, series: ISeriesApi<SeriesType>) {
     const ts = chart.timeScale();
     const range = ts.getVisibleLogicalRange();
     if (!range) return;
@@ -73,8 +84,28 @@ export class BandFill implements ISeriesPrimitive<Time> {
         else run.push([x, yu, yl]);
       }
       close();
-      ctx.fillStyle = this.color;
+      ctx.fillStyle = this.color();
       ctx.fill();
+    });
+  }
+}
+
+/** Shades the band between two fixed levels across the whole pane, such as RSI 30 to 70. */
+export class LevelBand extends Shade {
+  constructor(
+    private readonly band: [number, number],
+    color: () => string,
+  ) {
+    super(color);
+  }
+
+  protected draw(target: Target, _chart: IChartApi, series: ISeriesApi<SeriesType>) {
+    const a = series.priceToCoordinate(this.band[0]);
+    const b = series.priceToCoordinate(this.band[1]);
+    if (a == null || b == null) return;
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      ctx.fillStyle = this.color();
+      ctx.fillRect(0, Math.min(a, b), mediaSize.width, Math.abs(b - a));
     });
   }
 }

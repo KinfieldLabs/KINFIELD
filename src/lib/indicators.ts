@@ -77,6 +77,33 @@ export function bollinger(src: readonly number[], n: number, mult: number) {
   };
 }
 
+/**
+ * Relative Strength Index: Wilder's smoothed average gain against average loss over n
+ * bars, scaled 0 to 100. Smoothing starts from the simple average of the first n changes.
+ */
+export function rsi(src: readonly number[], n: number): Line {
+  const out: Line = new Array(src.length).fill(null);
+  if (src.length <= n) return out;
+  let up = 0;
+  let down = 0;
+  for (let i = 1; i <= n; i++) {
+    const ch = src[i] - src[i - 1];
+    up += Math.max(ch, 0);
+    down += Math.max(-ch, 0);
+  }
+  up /= n;
+  down /= n;
+  const value = () => (down === 0 ? 100 : up === 0 ? 0 : 100 - 100 / (1 + up / down));
+  out[n] = value();
+  for (let i = n + 1; i < src.length; i++) {
+    const ch = src[i] - src[i - 1];
+    up = (up * (n - 1) + Math.max(ch, 0)) / n;
+    down = (down * (n - 1) + Math.max(-ch, 0)) / n;
+    out[i] = value();
+  }
+  return out;
+}
+
 /** Exponential moving average, seeded with the simple average of the first n bars. */
 export function ema(src: readonly number[], n: number): Line {
   const out: Line = new Array(src.length).fill(null);
