@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text" | "ray" | "xline" | "channel" | "fibext";
+export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text" | "ray" | "xline" | "channel" | "fibext" | "arrow";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -24,7 +24,7 @@ export interface Drawing {
  * point's price, a vertical line only its time. A position is its entry, then its target
  * and stop, which share the box's right edge.
  */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1, ray: 2, xline: 2, channel: 3, fibext: 3 };
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1, ray: 2, xline: 2, channel: 3, fibext: 3, arrow: 2 };
 
 export const TOOL_NAMES: Record<ToolKind, string> = {
   trend: "Trend line",
@@ -40,6 +40,7 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   xline: "Extended line",
   channel: "Parallel channel",
   fibext: "Fib extension",
+  arrow: "Arrow",
 };
 
 /** Alt plus this letter picks the tool, as on TradingView where they overlap. */

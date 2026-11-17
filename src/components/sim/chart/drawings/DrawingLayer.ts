@@ -252,6 +252,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   private near(d: Drawing, pts: Point[], at: Point): boolean {
     switch (d.kind) {
       case "trend":
+      case "arrow":
         return toSegment(at, pts[0], pts[1]) <= REACH;
       case "ray":
       case "xline": {
@@ -467,6 +468,13 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         ctx.setLineDash([]);
         break;
       }
+      case "arrow":
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = hot ? 2.5 : 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        arrow(ctx, a, b, 11);
+        break;
       case "trend":
       case "ray":
       case "xline": {
@@ -650,16 +658,16 @@ function pill(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: numbe
 }
 
 /** A line from one point to another with a small head at the far end. */
-function arrow(ctx: CanvasRenderingContext2D, [x1, y1]: Point, [x2, y2]: Point) {
+function arrow(ctx: CanvasRenderingContext2D, [x1, y1]: Point, [x2, y2]: Point, head = 6) {
   const len = Math.hypot(x2 - x1, y2 - y1);
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
-  if (len > 12) {
+  if (len > head * 2) {
     const ang = Math.atan2(y2 - y1, x2 - x1);
     for (const s of [-1, 1]) {
       ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - 6 * Math.cos(ang + s * 0.45), y2 - 6 * Math.sin(ang + s * 0.45));
+      ctx.lineTo(x2 - head * Math.cos(ang + s * 0.45), y2 - head * Math.sin(ang + s * 0.45));
     }
   }
   ctx.stroke();
