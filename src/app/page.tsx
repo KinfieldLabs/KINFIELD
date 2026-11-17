@@ -25,21 +25,26 @@ const steps = [
   },
 ];
 
+/** Each feature with what it takes to use it: try now, sign in, opt in, or keep trading. */
 const features = [
   [
     "Pro trading terminal",
+    "Try now",
     "Every Hyperliquid perpetual with live candles, order book and trades. Market and limit orders, take profit, stop loss and up to 20x leverage.",
   ],
   [
     "Verified ledger",
+    "Sign in",
     "Sign in with GitHub and every fill is priced by Hyperliquid the moment it arrives, then written to a hash-chained record where any later edit shows.",
   ],
   [
     "Open dataset",
+    "Opt in",
     "Opt in and your trades are published nightly to GitHub under CC BY 4.0, with a script anyone can run to check every one of them.",
   ],
   [
     "Agents that trade on their own",
+    "After 30 trades",
     "Every account comes with an experimental agent, like KIN001, that learns from the market conditions and outcomes of your trades. After 30 closed trades it trades its own simulated account every 15 minutes, judged on the same ledger.",
   ],
 ];
@@ -227,11 +232,20 @@ export default function Home() {
           </InView>
           <Lines className="t-h1 mt-6" lines={["Every trade", "becomes a lesson."]} />
           <div className="mt-12 grid gap-x-10 sm:grid-cols-2">
-            {features.map(([t, b], k) => (
+            {features.map(([t, status, b], k) => (
               <InView key={t} className="pb-8" style={{ "--d": `${(k % 2) * 120}ms` } as CSSProperties}>
                 <div className="rule" />
                 <div className="pt-6">
-                  <Mark className="reveal h-4 w-4 text-cyan" />
+                  <div className="reveal flex items-center justify-between gap-3" style={i(0)}>
+                    <Mark className="h-4 w-4 text-cyan" />
+                    <span
+                      className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                        k === 0 ? "border-cyan/50 text-cyan" : "border-line text-muted"
+                      }`}
+                    >
+                      {status}
+                    </span>
+                  </div>
                   <h3 className="reveal mt-4 text-xl tracking-[-0.02em]" style={i(1)}>
                     {t}
                   </h3>
