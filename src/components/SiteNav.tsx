@@ -63,6 +63,7 @@ function Socials() {
 /** Transparent top bar that tucks away while scrolling down and returns on scroll up. */
 export function SiteNav() {
   const [hidden, setHidden] = useState(false);
+  const [open, setOpen] = useState(false);
   const path = usePathname();
   const home = path === "/";
   useEffect(() => {
@@ -77,13 +78,78 @@ export function SiteNav() {
     return () => window.removeEventListener("scroll", on);
   }, []);
 
+  // Menu: close on Escape or when the screen grows past phone size
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const wide = window.matchMedia("(min-width: 768px)");
+    const onWide = () => wide.matches && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    wide.addEventListener("change", onWide);
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      wide.removeEventListener("change", onWide);
+      document.documentElement.style.overflow = "";
+    };
+  }, [open]);
+
+  const links: [string, string][] = [
+    ...SECTIONS.map(([id, label]): [string, string] => [home ? `#${id}` : `/#${id}`, label]),
+    ...PAGES.map(([href, label]): [string, string] => [href, label]),
+  ];
+
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-transform duration-700 ease-[var(--ease-out)] ${
-        hidden ? "-translate-y-full" : "translate-y-0"
+        hidden && !open ? "-translate-y-full" : "translate-y-0"
       }`}
     >
-      <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-5">
+      {/* Phone menu: a frosted sheet under the bar */}
+      <div
+        id="mobile-menu"
+        aria-hidden={!open}
+        inert={!open}
+        className={`absolute inset-x-0 top-0 h-[100svh] bg-navy-950/70 backdrop-blur-xl transition-opacity duration-500 ease-[var(--ease-out)] md:hidden ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        <nav aria-label="Menu" className="flex h-full flex-col px-6 pb-10 pt-28">
+          {links.map(([href, label], k) => {
+            const current = href === path;
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setOpen(false)}
+                aria-current={current ? "page" : undefined}
+                style={{ transitionDelay: open ? `${80 + k * 45}ms` : "0ms" }}
+                className={`flex items-center justify-between border-b border-line py-4 text-[1.75rem] tracking-[-0.03em] transition-[opacity,transform] duration-700 ease-[var(--ease-out)] ${
+                  open ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+                } ${current ? "text-cyan" : "text-cream"}`}
+              >
+                {label}
+                {PAGES.some(([p]) => p === href) && (
+                  <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                    Soon
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+          <div
+            style={{ transitionDelay: open ? `${80 + links.length * 45}ms` : "0ms" }}
+            className={`mt-auto flex items-center justify-between transition-[opacity,transform] duration-700 ease-[var(--ease-out)] ${
+              open ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+            }`}
+          >
+            <span className="text-sm text-muted">Follow Kinfield</span>
+            <Socials />
+          </div>
+        </nav>
+      </div>
+
+      <div className="relative mx-auto flex max-w-[1280px] items-center justify-between px-6 py-5">
         <Logo />
         <nav className="flex items-center gap-3 sm:gap-7">
           {SECTIONS.map(([id, label]) => (
@@ -101,10 +167,33 @@ export function SiteNav() {
               {label}
             </Link>
           ))}
-          <Socials />
+          <div className="hidden md:block">
+            <Socials />
+          </div>
           <ConstellationButton href="/simulate" size="sm" className="whitespace-nowrap">
             Launch<span className="hidden sm:inline"> simulator</span>
           </ConstellationButton>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls="mobile-menu"
+            aria-label={open ? "Close menu" : "Open menu"}
+            className="-mr-2 flex h-10 w-10 items-center justify-center rounded-full text-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan md:hidden"
+          >
+            <span className="relative block h-3 w-5" aria-hidden>
+              <span
+                className={`absolute left-0 h-[1.5px] w-5 rounded-full bg-current transition-all duration-500 ease-[var(--ease-out)] ${
+                  open ? "top-[5px] rotate-45" : "top-0"
+                }`}
+              />
+              <span
+                className={`absolute left-0 h-[1.5px] w-5 rounded-full bg-current transition-all duration-500 ease-[var(--ease-out)] ${
+                  open ? "top-[5px] -rotate-45" : "top-[10.5px]"
+                }`}
+              />
+            </span>
+          </button>
         </nav>
       </div>
     </header>
