@@ -200,6 +200,13 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         return Math.abs(at[1] - pts[0][1]) <= REACH;
       case "vline":
         return Math.abs(at[0] - pts[0][0]) <= REACH;
+      case "rect":
+        return (
+          at[0] >= Math.min(pts[0][0], pts[1][0]) - REACH &&
+          at[0] <= Math.max(pts[0][0], pts[1][0]) + REACH &&
+          at[1] >= Math.min(pts[0][1], pts[1][1]) - REACH &&
+          at[1] <= Math.max(pts[0][1], pts[1][1]) + REACH
+        );
       case "fib": {
         const left = Math.min(pts[0][0], pts[1][0]) - REACH;
         const right = Math.max(pts[0][0], pts[1][0]) + REACH;
@@ -298,6 +305,18 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       case "fib":
         this.paintFib(ctx, d, a, b, hot);
         break;
+      case "rect": {
+        const x = Math.min(a[0], b[0]);
+        const y = Math.min(a[1], b[1]);
+        const w = Math.abs(b[0] - a[0]);
+        const h = Math.abs(b[1] - a[1]);
+        ctx.fillStyle = hot ? "rgba(253, 248, 234, 0.1)" : "rgba(253, 248, 234, 0.07)";
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = hot ? 2 : 1.5;
+        ctx.strokeRect(x, y, w, h);
+        break;
+      }
       case "trend":
         ctx.strokeStyle = INK;
         ctx.lineWidth = hot ? 2.5 : 2;

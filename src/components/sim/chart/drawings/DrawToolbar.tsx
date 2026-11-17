@@ -29,6 +29,7 @@ const ICONS: Record<ToolKind, ReactNode> = {
       <path d="M3 13l10-10" strokeLinecap="round" />
     </>
   ),
+  rect: <rect x="2" y="3.5" width="12" height="9" rx="1" />,
 };
 
 /** The column of drawing tools down the left of the chart. */
