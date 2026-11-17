@@ -103,6 +103,8 @@ export function AgentPanel({ coin, history, features, agentName, bare = false }:
         </>
       )}
 
+      <Milestones labeled={labeled} closed={history.length} signedIn={!!agentName} />
+
       {!bare && (
       <button
         onClick={exportData}
@@ -112,6 +114,54 @@ export function AgentPanel({ coin, history, features, agentName, bare = false }:
         Export training data (.jsonl)
       </button>
       )}
+    </div>
+  );
+}
+
+/** The autonomous agent's starting point, matching the server's minTeaching. */
+const AUTONOMOUS_AFTER = 30;
+/** The trade count readiness checks look for, matching READINESS.minTrades. */
+const CHECKS_AFTER = 100;
+
+/**
+ * What each trade count opens up, so the 3, 30 and 100 seen around the site read as
+ * steps rather than conflicting numbers. None of them is a promise of results.
+ */
+function Milestones({ labeled, closed, signedIn }: { labeled: number; closed: number; signedIn: boolean }) {
+  const steps = [
+    { n: MIN_SAMPLES, at: labeled, title: "Your agent starts reading the market", note: "It learns from your closed trades in this browser or account." },
+    {
+      n: AUTONOMOUS_AFTER,
+      at: labeled,
+      title: "It trades its own simulated account",
+      note: signedIn ? "Every 15 minutes, on the same tamper-evident ledger as you." : "Needs sign in, so its trades go on a ledger.",
+    },
+    {
+      n: CHECKS_AFTER,
+      at: closed,
+      title: "Track-record checks count",
+      note: "The checks on the agent page measure a record. They aren't a promise of profit, funding or real-money trading.",
+    },
+  ];
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-3">
+      <span className="text-xs text-muted">Milestones</span>
+      {steps.map((s) => {
+        const done = s.at >= s.n;
+        return (
+          <div key={s.n} className="grid grid-cols-[52px_1fr] gap-2 text-xs">
+            <span className={`num ${done ? "text-long" : "text-muted"}`}>
+              {done ? "Done" : `${Math.min(s.at, s.n)}/${s.n}`}
+            </span>
+            <div>
+              <span className={done ? "text-cream" : "text-mist"}>
+                {s.n} trades: {s.title}
+              </span>
+              <p className="mt-0.5 text-[11px] leading-snug text-muted/90">{s.note}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
