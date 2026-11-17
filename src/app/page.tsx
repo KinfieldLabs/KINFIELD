@@ -94,7 +94,7 @@ function Stage({
       id={id}
       data-shape={shape}
       data-side={side}
-      className={`mx-auto grid min-h-[100svh] max-w-[1280px] items-center gap-10 px-6 py-[120px] ${
+      className={`mx-auto grid min-h-[88svh] max-w-[1280px] items-center gap-10 px-6 py-24 lg:py-[104px] ${
         side === "left" ? "lg:grid-cols-[1fr_1.2fr]" : "lg:grid-cols-[1.2fr_1fr]"
       } ${className}`}
     >
@@ -198,6 +198,14 @@ export default function Home() {
               </InView>
             ))}
           </div>
+          <InView className="mt-4 flex flex-wrap items-center gap-6">
+            <ConstellationButton href="/simulate" className="reveal" style={i(0)}>
+              Launch simulator
+            </ConstellationButton>
+            <p className="reveal text-sm text-muted" style={i(1)}>
+              No sign in needed to start.
+            </p>
+          </InView>
         </Stage>
 
         {/* Why: neural network */}
