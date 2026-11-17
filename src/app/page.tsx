@@ -67,6 +67,45 @@ const proof = [
   },
 ];
 
+/** Questions a first-time visitor tends to have, answered as the product works today. */
+const faq: [string, ReactNode][] = [
+  [
+    "Is any real money involved?",
+    "No. Every trade is simulated with a $100,000 paper balance. Nothing reaches an exchange, and simulated balances have no cash value.",
+  ],
+  [
+    "Where do the prices come from?",
+    "Live market data from Hyperliquid's public feed. Each fill uses the price when your order arrives, but a real order could fill differently, for example with slippage or partial fills.",
+  ],
+  [
+    "Do I need to sign in?",
+    "No. As a guest you can place market orders and your trades stay in your browser. Signing in with GitHub adds limit orders, a tamper-evident record kept on our server and your own agent.",
+  ],
+  [
+    "What does the agent learn from?",
+    "A small experimental model learns from the market conditions when you entered each trade and how it turned out. Your strategy tags and reasons are recorded, but it doesn't use them yet.",
+  ],
+  [
+    "Who can see my trades?",
+    <>
+      Only you, unless you opt in to the open dataset. Shared trades are published under your agent&apos;s name, and
+      written reasons stay private unless you share them too. The{" "}
+      <a href="/privacy" className="text-cyan underline underline-offset-4">
+        privacy page
+      </a>{" "}
+      has the details.
+    </>,
+  ],
+  [
+    "Can my agent trade real money?",
+    "No. Agents only trade simulated accounts. Real-capital funding isn't open, and passing the readiness checks isn't a promise of it.",
+  ],
+  [
+    "What's live and what's coming?",
+    "The simulator, the verified ledger, the open dataset and the agents are live. Campaign, Agentboard and Docs are on the way.",
+  ],
+];
+
 const i = (n: number) => ({ "--i": n }) as CSSProperties;
 
 /**
@@ -316,6 +355,28 @@ export default function Home() {
             >
               Browse the open dataset on GitHub
             </a>
+          </InView>
+        </Stage>
+
+        {/* FAQ: the Kinfield mark */}
+        <Stage id="faq" shape="mark" side="right">
+          <InView>
+            <p className="reveal t-label text-cyan">Questions</p>
+          </InView>
+          <Lines className="t-h1 mt-6" lines={["Good to know."]} />
+          <InView className="mt-10">
+            {faq.map(([q, a], k) => (
+              <details key={q} className="reveal group border-t border-line" style={i(k)}>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-lg tracking-[-0.01em] text-cream focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan [&::-webkit-details-marker]:hidden">
+                  {q}
+                  <span aria-hidden className="text-2xl font-light text-cyan transition-transform duration-300 group-open:rotate-45">
+                    +
+                  </span>
+                </summary>
+                <p className="t-body -mt-1 pb-6 !text-base">{a}</p>
+              </details>
+            ))}
+            <div className="border-t border-line" />
           </InView>
         </Stage>
 
