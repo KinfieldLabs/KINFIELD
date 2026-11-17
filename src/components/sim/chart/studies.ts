@@ -1,8 +1,8 @@
 import { LineStyle } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
-import { bollinger, ema, endsDay, rsi, sma, vwap, type Line } from "@/lib/indicators";
+import { bollinger, ema, endsDay, macd, rsi, sma, vwap, type Line } from "@/lib/indicators";
 
-export type StudyKind = "ma" | "ema" | "bb" | "vwap" | "rsi";
+export type StudyKind = "ma" | "ema" | "bb" | "vwap" | "rsi" | "macd";
 
 /** An indicator on the chart. */
 export interface Study {
@@ -30,6 +30,10 @@ export interface StudyLine {
   style: LineStyle;
   /** Pixels; 2 when left out. */
   width?: 1 | 2;
+  /** Drawn as bars from zero instead of a line. */
+  histogram?: boolean;
+  /** Color of the bar or point at i, when it varies. */
+  colorAt?(line: Line, i: number): string;
 }
 
 export interface StudyDef {
@@ -79,6 +83,14 @@ export function fitsParam(p: StudyParam, v: number): boolean {
 }
 
 const closes = (bars: readonly Candle[]) => bars.map((b) => b.c);
+
+/** Histogram bars: green above zero and red below, strong while growing away from zero, faded while shrinking. */
+function histColor(h: Line, i: number) {
+  const v = h[i] ?? 0;
+  const prev = h[i - 1];
+  const growing = prev == null || Math.abs(v) >= Math.abs(prev);
+  return v >= 0 ? `rgba(47, 214, 160, ${growing ? 0.75 : 0.35})` : `rgba(255, 107, 125, ${growing ? 0.75 : 0.35})`;
+}
 const single = (key: string) => (s: Study) => [{ key, color: slotColor(s.slot), style: slotStyle(s.slot) }];
 
 export const STUDIES: Record<StudyKind, StudyDef> = {
@@ -149,6 +161,26 @@ export const STUDIES: Record<StudyKind, StudyDef> = {
     levelBand: [30, 70],
     range: [0, 100],
     decimals: 2,
+  },
+  macd: {
+    kind: "macd",
+    name: "MACD",
+    short: "MACD",
+    blurb: "Gap between a fast and a slow EMA, with its signal line and histogram",
+    group: "Momentum",
+    params: [
+      { label: "Fast length", value: 12, min: 1, max: 200 },
+      { label: "Slow length", value: 26, min: 1, max: 400 },
+      { label: "Signal length", value: 9, min: 1, max: 100 },
+    ],
+    lines: (s) => [
+      { key: "hist", color: "rgba(47, 214, 160, 0.75)", style: LineStyle.Solid, histogram: true, colorAt: histColor },
+      { key: "macd", color: slotColor(s.slot), style: slotStyle(s.slot) },
+      { key: "signal", color: slotColor(s.slot + 1), style: slotStyle(s.slot) },
+    ],
+    compute: (bars, [fast, slow, signal]) => macd(closes(bars), fast, slow, signal),
+    pane: true,
+    levels: [0],
   },
 };
 

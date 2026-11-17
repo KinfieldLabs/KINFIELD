@@ -1,4 +1,5 @@
 import {
+  HistogramSeries,
   LineSeries,
   LineStyle,
   type IChartApi,
@@ -10,15 +11,19 @@ import {
 import type { Candle } from "@/lib/hyperliquid";
 import type { Line } from "@/lib/indicators";
 import { BandFill, LevelBand, withAlpha } from "./BandFill";
-import { slotColor, STUDIES, type Study, type StudyDef } from "./studies";
+import { slotColor, STUDIES, type Study, type StudyDef, type StudyLine } from "./studies";
+
+/** Line and histogram series take the same data points; this is the one call shape both share. */
+type StudySeries = ISeriesApi<"Line"> | ISeriesApi<"Histogram">;
+const asLine = (s: StudySeries) => s as ISeriesApi<"Line">;
 
 interface Entry {
   study: Study;
-  series: Map<string, ISeriesApi<"Line">>;
+  series: Map<string, StudySeries>;
   values: Record<string, Line>;
 }
 
-/** Height of a new indicator pane under the candles, in pixels. */
+/** Height of an indicator pane under the candles, in pixels, when the chart has room. */
 const PANE_HEIGHT = 110;
 const LEVEL_COLOR = "rgba(142, 163, 207, 0.45)";
 /** The library strokes each segment in its starting point's color, so a clear point ends the line there. */
@@ -26,14 +31,11 @@ const BREAK = "rgba(0, 0, 0, 0)";
 
 const sec = (ms: number) => (ms / 1000) as UTCTimestamp;
 
-function toData(bars: readonly Candle[], line: Line, breaksAfter?: StudyDef["breaksAfter"]): LineData[] {
-  const out: LineData[] = [];
-  for (let i = 0; i < bars.length; i++) {
-    const v = line[i];
-    if (v == null) continue;
-    out.push(breaksAfter?.(bars, i) ? { time: sec(bars[i].t), value: v, color: BREAK } : { time: sec(bars[i].t), value: v });
-  }
-  return out;
+function point(bars: readonly Candle[], values: Line, i: number, line: StudyLine, def: StudyDef): LineData | null {
+  const v = values[i];
+  if (v == null) return null;
+  const color = line.colorAt ? line.colorAt(values, i) : def.breaksAfter?.(bars, i) ? BREAK : undefined;
+  return color ? { time: sec(bars[i].t), value: v, color } : { time: sec(bars[i].t), value: v };
 }
 
 /** Keeps the chart's indicator series in step with the indicator list and the candles. */
@@ -51,6 +53,7 @@ export class StudyLayer {
    * place, so an indicator keeps its pane and position.
    */
   sync(studies: readonly Study[], bars: readonly Candle[]) {
+    const panes = this.chart.panes().length;
     for (const [id, e] of this.entries) {
       if (!studies.some((s) => s.id === id)) {
         e.series.forEach((series) => this.chart.removeSeries(series));
@@ -69,10 +72,32 @@ export class StudyLayer {
       e.study = s;
       if (prev.params.join() !== s.params.join()) this.fill(e, bars);
       if (prev.slot !== s.slot) {
-        for (const line of STUDIES[s.kind].lines(s)) e.series.get(line.key)?.applyOptions({ color: line.color, lineStyle: line.style });
+        for (const line of STUDIES[s.kind].lines(s)) {
+          const series = e.series.get(line.key);
+          if (series && !line.histogram) asLine(series).applyOptions({ color: line.color, lineStyle: line.style });
+        }
       }
       if (!!prev.hidden !== !!s.hidden) e.series.forEach((series) => series.applyOptions({ visible: !s.hidden }));
     }
+    if (this.chart.panes().length !== panes) this.layoutPanes();
+  }
+
+  /**
+   * Gives each indicator pane the same height, about 110px but never more than half
+   * the chart between them, and the candles the rest. Runs when panes come or go.
+   */
+  private layoutPanes(attempt = 0) {
+    const panes = this.chart.panes();
+    const k = panes.length - 1;
+    if (k < 1) return;
+    const available = this.chart.chartElement().clientHeight - this.chart.timeScale().height();
+    // The chart has no size until it is first laid out
+    if (available <= 0) {
+      if (attempt < 10) requestAnimationFrame(() => this.layoutPanes(attempt + 1));
+      return;
+    }
+    const each = Math.min(PANE_HEIGHT, (available * 0.5) / k);
+    panes.forEach((p, i) => p.setStretchFactor(i === 0 ? available - k * each : each));
   }
 
   /** Recomputes everything after the bars were replaced (market, interval or older history). */
@@ -87,12 +112,14 @@ export class StudyLayer {
     if (i < 0) return;
     if (bars.length !== this.filledBars) return this.reload(bars);
     for (const e of this.entries.values()) {
-      e.values = STUDIES[e.study.kind].compute(bars, e.study.params);
-      for (const [key, series] of e.series) {
-        const v = e.values[key]?.[i];
-        if (v == null) continue;
+      const def = STUDIES[e.study.kind];
+      e.values = def.compute(bars, e.study.params);
+      for (const line of def.lines(e.study)) {
+        const series = e.series.get(line.key);
+        const p = point(bars, e.values[line.key] ?? [], i, line, def);
+        if (!series || !p) continue;
         try {
-          series.update({ time: sec(bars[i].t), value: v });
+          asLine(series).update(p);
         } catch {}
       }
     }
@@ -119,7 +146,11 @@ export class StudyLayer {
   /** Hidden while the chart is scrolled back in history, like the candles' own label. */
   setLastValueVisible(visible: boolean) {
     this.lastValueVisible = visible;
-    this.entries.forEach((e) => e.series.forEach((s) => s.applyOptions({ lastValueVisible: visible })));
+    for (const e of this.entries.values()) {
+      for (const line of STUDIES[e.study.kind].lines(e.study)) {
+        if (!line.histogram) e.series.get(line.key)?.applyOptions({ lastValueVisible: visible });
+      }
+    }
   }
 
   private formatFor(def: StudyDef): PriceFormat {
@@ -129,32 +160,36 @@ export class StudyLayer {
 
   private build(s: Study): Entry {
     const def = STUDIES[s.kind];
-    const series = new Map<string, ISeriesApi<"Line">>();
+    const series = new Map<string, StudySeries>();
     const entry: Entry = { study: s, series, values: {} };
     const paneIndex = def.pane ? this.chart.panes().length : 0;
     const range = def.range;
+    const common = {
+      priceLineVisible: false,
+      priceFormat: this.formatFor(def),
+      visible: !s.hidden,
+      ...(range && { autoscaleInfoProvider: () => ({ priceRange: { minValue: range[0], maxValue: range[1] } }) }),
+    };
 
     for (const line of def.lines(s)) {
       series.set(
         line.key,
-        this.chart.addSeries(
-          LineSeries,
-          {
-            color: line.color,
-            lineWidth: line.width ?? 2,
-            lineStyle: line.style,
-            priceLineVisible: false,
-            lastValueVisible: this.lastValueVisible,
-            crosshairMarkerVisible: false,
-            priceFormat: this.formatFor(def),
-            visible: !s.hidden,
-            ...(range && { autoscaleInfoProvider: () => ({ priceRange: { minValue: range[0], maxValue: range[1] } }) }),
-          },
-          paneIndex,
-        ),
+        line.histogram
+          ? this.chart.addSeries(HistogramSeries, { ...common, color: line.color, lastValueVisible: false }, paneIndex)
+          : this.chart.addSeries(
+              LineSeries,
+              {
+                ...common,
+                color: line.color,
+                lineWidth: line.width ?? 2,
+                lineStyle: line.style,
+                lastValueVisible: this.lastValueVisible,
+                crosshairMarkerVisible: false,
+              },
+              paneIndex,
+            ),
       );
     }
-    if (def.pane) this.chart.panes()[paneIndex]?.setHeight(PANE_HEIGHT);
 
     const first = series.values().next().value;
     const color = (alpha: number) => () => withAlpha(slotColor(entry.study.slot), alpha);
@@ -174,6 +209,16 @@ export class StudyLayer {
   private fill(e: Entry, bars: readonly Candle[]) {
     const def = STUDIES[e.study.kind];
     e.values = def.compute(bars, e.study.params);
-    for (const [key, series] of e.series) series.setData(toData(bars, e.values[key] ?? [], def.breaksAfter));
+    for (const line of def.lines(e.study)) {
+      const series = e.series.get(line.key);
+      if (!series) continue;
+      const values = e.values[line.key] ?? [];
+      const data: LineData[] = [];
+      for (let i = 0; i < bars.length; i++) {
+        const p = point(bars, values, i, line, def);
+        if (p) data.push(p);
+      }
+      asLine(series).setData(data);
+    }
   }
 }

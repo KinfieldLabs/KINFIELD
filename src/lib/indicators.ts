@@ -104,6 +104,29 @@ export function rsi(src: readonly number[], n: number): Line {
   return out;
 }
 
+/**
+ * MACD: the gap between a fast and a slow EMA of the close, its EMA as the signal
+ * line, and the histogram of MACD minus signal.
+ */
+export function macd(src: readonly number[], fast: number, slow: number, signal: number) {
+  const f = ema(src, fast);
+  const s = ema(src, slow);
+  const line: Line = f.map((v, i) => (v == null || s[i] == null ? null : v - s[i]!));
+  const sig = emaOfLine(line, signal);
+  const hist: Line = line.map((v, i) => (v == null || sig[i] == null ? null : v - sig[i]!));
+  return { hist, macd: line, signal: sig };
+}
+
+/** EMA of a line that starts with nulls, beginning once it has n values. */
+function emaOfLine(src: Line, n: number): Line {
+  const out: Line = new Array(src.length).fill(null);
+  const start = src.findIndex((v) => v != null);
+  if (start < 0) return out;
+  const e = ema(src.slice(start) as number[], n);
+  for (let i = 0; i < e.length; i++) out[start + i] = e[i];
+  return out;
+}
+
 /** Exponential moving average, seeded with the simple average of the first n bars. */
 export function ema(src: readonly number[], n: number): Line {
   const out: Line = new Array(src.length).fill(null);
