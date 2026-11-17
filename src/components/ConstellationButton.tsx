@@ -9,6 +9,10 @@ const SPRING = 0.02;
 const DAMPING = 0.85;
 const PUSH_RADIUS = 70;
 const PUSH = 2.4;
+const SIZES = {
+  sm: "px-4 py-2.5 text-sm sm:px-5",
+  md: "px-8 py-[1.05rem] text-[0.9375rem]",
+};
 /** Room around the button for scattered particles to fly into. */
 const BLEED = 48;
 
@@ -50,11 +54,14 @@ export function ConstellationButton({
   href,
   children,
   className = "",
+  size = "md",
   style,
 }: {
   href: string;
   children: ReactNode;
   className?: string;
+  /** "sm" for the navbar, "md" for page CTAs. */
+  size?: "sm" | "md";
   style?: React.CSSProperties;
 }) {
   const box = useRef<HTMLAnchorElement>(null);
@@ -182,7 +189,7 @@ export function ConstellationButton({
       ref={box}
       href={href}
       style={style}
-      className={`group relative inline-flex items-center rounded-[var(--radius-pill)] px-8 py-[1.05rem] text-[0.9375rem] font-semibold text-cream [text-shadow:0_0_12px_var(--navy-900),0_0_4px_var(--navy-900)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan ${className}`}
+      className={`group relative inline-flex items-center rounded-[var(--radius-pill)] ${SIZES[size]} font-semibold text-cream [text-shadow:0_0_12px_var(--navy-900),0_0_4px_var(--navy-900)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan ${className}`}
     >
       <canvas
         ref={canvas}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Logo } from "./Logo";
+import { ConstellationButton } from "./ConstellationButton";
 
 const SOCIALS = [
   {
@@ -78,9 +78,9 @@ export function SiteNav() {
             Features
           </a>
           <Socials />
-          <Link href="/simulate" className="btn-primary whitespace-nowrap !px-4 !py-2.5 !text-sm sm:!px-5">
-            Launch<span className="-ml-[0.35rem] hidden sm:inline">simulator</span>
-          </Link>
+          <ConstellationButton href="/simulate" size="sm" className="whitespace-nowrap">
+            Launch<span className="hidden sm:inline"> simulator</span>
+          </ConstellationButton>
         </nav>
       </div>
     </header>
