@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Constellation, type ShapeName } from "@/components/Constellation";
 import { Logo, Mark } from "@/components/Logo";
+import { HyperliquidMark } from "@/components/HyperliquidMark";
 import { InView, Lines, SmoothScroll } from "@/components/motion";
 import { ConstellationButton } from "@/components/ConstellationButton";
 import { SiteNav } from "@/components/SiteNav";
@@ -120,10 +121,17 @@ export default function Home() {
         >
           <div>
             <InView onMount>
-              <div className="reveal mb-8 inline-flex items-center gap-2.5 text-muted" style={i(0)}>
+              <a
+                href="https://hyperliquid.xyz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="reveal group mb-8 inline-flex items-center gap-2.5 text-muted transition-colors duration-300 hover:text-cream"
+                style={i(0)}
+              >
                 <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan" />
                 <span className="t-label">Powered by Hyperliquid</span>
-              </div>
+                <HyperliquidMark className="h-[17px] w-auto text-[#97fce4] transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-110" />
+              </a>
             </InView>
             <Lines as="h1" onMount className="t-display lg:whitespace-nowrap" lines={["Teach agents", "to trade."]} delay={150} />
             <InView onMount className="mt-8 max-w-xl" style={{ "--d": "550ms" } as CSSProperties}>
