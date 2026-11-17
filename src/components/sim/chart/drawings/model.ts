@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text";
+export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text" | "ray" | "xline";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -24,7 +24,7 @@ export interface Drawing {
  * point's price, a vertical line only its time. A position is its entry, then its target
  * and stop, which share the box's right edge.
  */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1 };
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1, ray: 2, xline: 2 };
 
 export const TOOL_NAMES: Record<ToolKind, string> = {
   trend: "Trend line",
@@ -36,10 +36,12 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   long: "Long position",
   short: "Short position",
   text: "Text note",
+  ray: "Ray",
+  xline: "Extended line",
 };
 
 /** Alt plus this letter picks the tool, as on TradingView where they overlap. */
-export const SHORTCUTS: Record<ToolKind, string> = {
+export const SHORTCUTS: Partial<Record<ToolKind, string>> = {
   trend: "T",
   hline: "H",
   vline: "V",

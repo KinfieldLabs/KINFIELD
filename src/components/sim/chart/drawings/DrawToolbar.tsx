@@ -49,7 +49,24 @@ const ICONS: Record<ToolKind, ReactNode> = {
     </>
   ),
   text: <path d="M3 3.5h10M8 3.5v9.5M6 13h4" strokeLinecap="round" />,
+  ray: (
+    <>
+      <path d="M3.5 12.5L15 1" strokeLinecap="round" />
+      <circle cx="3.5" cy="12.5" r="1.6" />
+      <circle cx="8.5" cy="7.5" r="1.6" />
+    </>
+  ),
+  xline: (
+    <>
+      <path d="M0.5 15.5L15.5 0.5" strokeLinecap="round" />
+      <circle cx="5.5" cy="10.5" r="1.6" />
+      <circle cx="10.5" cy="5.5" r="1.6" />
+    </>
+  ),
 };
+
+/** Tools in the column, lines first. */
+const ORDER: ToolKind[] = ["trend", "ray", "xline", "hline", "vline", "fib", "rect", "measure", "long", "short", "text"];
 
 /** The column of drawing tools down the left of the chart. */
 export function DrawToolbar({
@@ -84,8 +101,8 @@ export function DrawToolbar({
       <ToolButton label="Cursor" keys="Escape" active={tool === "cursor"} onClick={() => onTool("cursor")}>
         <path d="M4 2.5l8 5.8-3.4.7 2 4-1.5.8-2-4-3.1 2.6z" strokeLinejoin="round" />
       </ToolButton>
-      {(Object.keys(ICONS) as ToolKind[]).map((k) => (
-        <ToolButton key={k} label={TOOL_NAMES[k]} keys={`Alt+${SHORTCUTS[k]}`} active={tool === k} onClick={() => onTool(tool === k ? "cursor" : k)}>
+      {ORDER.map((k) => (
+        <ToolButton key={k} label={TOOL_NAMES[k]} keys={SHORTCUTS[k] && `Alt+${SHORTCUTS[k]}`} active={tool === k} onClick={() => onTool(tool === k ? "cursor" : k)}>
           {ICONS[k]}
         </ToolButton>
       ))}

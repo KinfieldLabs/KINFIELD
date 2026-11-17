@@ -71,6 +71,18 @@ export function logicalToTime(bars: readonly Candle[], i: number, step: number):
   return bars[i].t;
 }
 
+/**
+ * The line through a and b carried far past b, and for an extended line past a too, so
+ * the canvas clips it at the chart's edges.
+ */
+function extend(a: Point, b: Point, both: boolean): [Point, Point] {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const k = 20000 / len;
+  return [both ? [a[0] - dx * k, a[1] - dy * k] : a, [b[0] + dx * k, b[1] + dy * k]];
+}
+
 /** Distance from a point to the segment a to b. */
 function toSegment([x, y]: Point, [x1, y1]: Point, [x2, y2]: Point) {
   const dx = x2 - x1;
@@ -232,6 +244,11 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     switch (d.kind) {
       case "trend":
         return toSegment(at, pts[0], pts[1]) <= REACH;
+      case "ray":
+      case "xline": {
+        const [p, q] = extend(pts[0], pts[1], d.kind === "xline");
+        return toSegment(at, p, q) <= REACH;
+      }
       case "hline":
         return Math.abs(at[1] - pts[0][1]) <= REACH;
       case "vline":
@@ -396,14 +413,18 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         break;
       }
       case "trend":
+      case "ray":
+      case "xline": {
+        const [p, q] = d.kind === "trend" ? [a, b] : extend(a, b, d.kind === "xline");
         ctx.strokeStyle = INK;
         ctx.lineWidth = hot ? 2.5 : 2;
         ctx.lineCap = "round";
         ctx.beginPath();
-        ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(b[0], b[1]);
+        ctx.moveTo(p[0], p[1]);
+        ctx.lineTo(q[0], q[1]);
         ctx.stroke();
         break;
+      }
     }
   }
 
