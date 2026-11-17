@@ -31,10 +31,48 @@ before deploying the code that needs them; the live release keeps working in bet
   - Every Hyperliquid perp, with live candles, order book, trades and market stats over Hyperliquid's public WebSocket
   - Market and limit orders, take profit / stop loss, leverage up to 20x, maker and taker fees, liquidation
   - Positions, open orders and trade history (with why each trade ended), drawn on the chart
+  - Indicators and drawing tools on the chart (see [Chart tools](#chart-tools))
   - Strategy tags and a reason for each trade
   - **Your agent**: a logistic-regression policy trained in the browser on your closed trades
   - Export the trade log as JSONL (context → action → intent → outcome)
   - Guest mode keeps trades in the browser (market orders only); signing in uses the verified ledger
+
+## Chart tools
+
+The terminal's chart is TradingView's open source
+[lightweight-charts](https://github.com/tradingview/lightweight-charts), with indicators
+and drawing tools built on it.
+
+**Indicators** (the Indicators button above the chart) follow TradingView's definitions,
+so their values match a TradingView chart of the same candles.
+
+| Indicator | Defaults | Shown |
+| --- | --- | --- |
+| Moving Average | 20 | Over the candles |
+| EMA | 20 | Over the candles |
+| Bollinger Bands | 20, 2 | Over the candles, the band shaded |
+| VWAP | Resets 00:00 UTC | Over the candles |
+| RSI | 14 | Own pane, 70 and 30 levels |
+| MACD | 12, 26, 9 | Own pane |
+| Stochastic | 14, 1, 3 | Own pane, 80 and 20 levels |
+| ATR | 14 | Own pane |
+
+Each indicator's legend row shows its values at the candle under the cursor, and can
+hide it, open its settings (lengths and color) or remove it. Indicators are remembered
+in the browser across markets.
+
+**Drawing tools** (the column left of the chart): trend line, horizontal line, vertical
+line, Fibonacci retracement, rectangle, measure, and long and short positions with their
+risk to reward. Drawings are anchored to time and price, so they stay put when the
+interval changes, and each market keeps its own in the browser.
+
+- Draw by pressing and dragging, or by clicking each point; Escape cancels
+- With the cursor, click a drawing to select it, drag it to move it, or drag a handle to reshape it; Delete or Backspace removes it
+- The magnet snaps points to the candle's nearest open, high, low or close
+- Drawings can be hidden without deleting them, or all removed with a second click
+
+Shortcuts: Alt+T trend line, Alt+H horizontal line, Alt+V vertical line, Alt+F Fib
+retracement, Alt+R rectangle, Alt+M measure, Alt+L long, Alt+S short, Esc cursor.
 
 ## Accounts and the verified ledger
 
@@ -113,3 +151,6 @@ repository, and sends only agents whose files changed. Locally, `?dry=1` writes 
 - `src/lib/features.ts` market features captured at entry
 - `src/lib/agent.ts` apprentice agent
 - `src/components/sim/*` terminal UI
+- `src/lib/indicators.ts` indicator math
+- `src/components/sim/chart/*` indicators on the chart: definitions, series, menu, legend and settings
+- `src/components/sim/chart/drawings/*` drawing tools: the drawings, their canvas layer, pointer handling and the tool column
