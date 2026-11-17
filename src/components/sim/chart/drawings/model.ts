@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text" | "ray" | "xline";
+export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text" | "ray" | "xline" | "channel";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -24,7 +24,7 @@ export interface Drawing {
  * point's price, a vertical line only its time. A position is its entry, then its target
  * and stop, which share the box's right edge.
  */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1, ray: 2, xline: 2 };
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1, ray: 2, xline: 2, channel: 3 };
 
 export const TOOL_NAMES: Record<ToolKind, string> = {
   trend: "Trend line",
@@ -38,6 +38,7 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   text: "Text note",
   ray: "Ray",
   xline: "Extended line",
+  channel: "Parallel channel",
 };
 
 /** Alt plus this letter picks the tool, as on TradingView where they overlap. */
@@ -67,6 +68,10 @@ const isPosition = (k: ToolKind) => k === "long" || k === "short";
  * end, and the stop mirrors the target, one to one, until it is moved.
  */
 export function shape(kind: ToolKind, a: Anchor, b: Anchor): Anchor[] {
+  if (kind === "channel") {
+    // The parallel line starts half the main line's rise away, on the far side
+    return [a, b, { t: a.t, p: a.p - (b.p - a.p) / 2 }];
+  }
   if (isPosition(kind)) {
     const reach = (kind === "long" ? 1 : -1) * Math.abs(b.p - a.p);
     return [a, { t: b.t, p: a.p + reach }, { t: b.t, p: a.p - reach }];
@@ -79,6 +84,13 @@ export function shape(kind: ToolKind, a: Anchor, b: Anchor): Anchor[] {
  * right edge together and can't cross the entry, which stays between them.
  */
 export function moveHandle(d: Drawing, i: number, a: Anchor): Anchor[] {
+  if (d.kind === "channel") {
+    // The third point only sets the width; the main line's ends carry the width with them
+    const [p0, p1, p2] = d.points;
+    const width = p2.p - p0.p;
+    if (i === 2) return [p0, p1, { t: p0.t, p: a.p }];
+    return i === 0 ? [a, p1, { t: a.t, p: a.p + width }] : [p0, a, p2];
+  }
   if (!isPosition(d.kind)) return d.points.map((p, j) => (j === i ? a : p));
   const [entry, target, stop] = d.points;
   const up = d.kind === "long";

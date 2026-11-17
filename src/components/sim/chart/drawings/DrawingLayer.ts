@@ -240,6 +240,13 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return null;
   }
 
+  /** A channel's corners on screen: the main line, then the parallel line shifted by the third point's offset. */
+  private channel(pts: Point[]): [Point, Point, Point, Point] {
+    const [a, b, c] = pts;
+    const dy = c[1] - a[1];
+    return [a, b, [a[0], a[1] + dy], [b[0], b[1] + dy]];
+  }
+
   private near(d: Drawing, pts: Point[], at: Point): boolean {
     switch (d.kind) {
       case "trend":
@@ -248,6 +255,16 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       case "xline": {
         const [p, q] = extend(pts[0], pts[1], d.kind === "xline");
         return toSegment(at, p, q) <= REACH;
+      }
+      case "channel": {
+        const [a, b, a2, b2] = this.channel(pts);
+        if (toSegment(at, a, b) <= REACH || toSegment(at, a2, b2) <= REACH) return true;
+        // Inside the band: between the two lines, within the main line's span
+        const k = (at[0] - a[0]) / (b[0] - a[0] || 1);
+        if (k < 0 || k > 1) return false;
+        const y1 = a[1] + k * (b[1] - a[1]);
+        const y2 = a2[1] + k * (b2[1] - a2[1]);
+        return at[1] >= Math.min(y1, y2) && at[1] <= Math.max(y1, y2);
       }
       case "hline":
         return Math.abs(at[1] - pts[0][1]) <= REACH;
@@ -410,6 +427,35 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         ctx.strokeStyle = INK;
         ctx.lineWidth = hot ? 2 : 1.5;
         ctx.strokeRect(x, y, w, h);
+        break;
+      }
+      case "channel": {
+        const [p0, p1, p2, p3] = this.channel(pts);
+        ctx.fillStyle = hot ? "rgba(253, 248, 234, 0.09)" : "rgba(253, 248, 234, 0.06)";
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.lineTo(p3[0], p3[1]);
+        ctx.lineTo(p2[0], p2[1]);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = hot ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.moveTo(p2[0], p2[1]);
+        ctx.lineTo(p3[0], p3[1]);
+        ctx.stroke();
+        // The midline, where price often turns inside a channel
+        ctx.strokeStyle = "rgba(253, 248, 234, 0.45)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo((p0[0] + p2[0]) / 2, (p0[1] + p2[1]) / 2);
+        ctx.lineTo((p1[0] + p3[0]) / 2, (p1[1] + p3[1]) / 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
         break;
       }
       case "trend":
