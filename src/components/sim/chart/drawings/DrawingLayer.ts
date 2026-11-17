@@ -12,7 +12,7 @@ import type {
   Time,
 } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
-import type { Anchor, Drawing } from "./model";
+import { FIB_LEVELS, type Anchor, type Drawing } from "./model";
 
 type Target = Parameters<IPrimitivePaneRenderer["draw"]>[0];
 type Point = [number, number];
@@ -21,6 +21,13 @@ type Point = [number, number];
 export const INK = "#fdf8ea";
 const NAVY = "#01154d";
 const HANDLE_R = 4.5;
+/** The golden pocket, 0.5 to 0.618, gets the warm tint traders look for. */
+const POCKET = "rgba(201, 133, 0, 0.14)";
+
+/** The page's mono font, for labels drawn on the canvas, which can't read CSS variables. */
+let mono = "";
+const monoFont = () =>
+  (mono ||= (typeof document !== "undefined" && getComputedStyle(document.body).getPropertyValue("--font-geist-mono").trim()) || "monospace");
 /** How close, in pixels, a press must be to a line to pick it. */
 const REACH = 6;
 
@@ -193,6 +200,15 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         return Math.abs(at[1] - pts[0][1]) <= REACH;
       case "vline":
         return Math.abs(at[0] - pts[0][0]) <= REACH;
+      case "fib": {
+        const left = Math.min(pts[0][0], pts[1][0]) - REACH;
+        const right = Math.max(pts[0][0], pts[1][0]) + REACH;
+        if (at[0] < left || at[0] > right) return false;
+        return fibLevels(d).some(({ p }) => {
+          const y = this.toY(p);
+          return y != null && Math.abs(at[1] - y) <= REACH;
+        });
+      }
     }
   }
 
@@ -279,6 +295,9 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         ctx.lineTo(a[0], size.height);
         ctx.stroke();
         break;
+      case "fib":
+        this.paintFib(ctx, d, a, b, hot);
+        break;
       case "trend":
         ctx.strokeStyle = INK;
         ctx.lineWidth = hot ? 2.5 : 2;
@@ -290,6 +309,50 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         break;
     }
   }
+
+  /** Level lines between the two points, the bands between them shaded, each level labelled with its price. */
+  private paintFib(ctx: CanvasRenderingContext2D, d: Drawing, a: Point, b: Point, hot: boolean) {
+    const left = Math.min(a[0], b[0]);
+    const width = Math.abs(b[0] - a[0]);
+    const levels = fibLevels(d)
+      .map((l) => ({ ...l, y: this.toY(l.p) }))
+      .filter((l): l is { level: number; p: number; y: number } => l.y != null);
+
+    for (let k = 0; k + 1 < levels.length; k++) {
+      const [u, v] = [levels[k], levels[k + 1]];
+      ctx.fillStyle = u.level === 0.5 && v.level === 0.618 ? POCKET : `rgba(253, 248, 234, ${k % 2 ? 0.035 : 0.06})`;
+      ctx.fillRect(left, Math.min(u.y, v.y), width, Math.abs(v.y - u.y));
+    }
+
+    ctx.lineWidth = hot ? 1.5 : 1;
+    ctx.font = `10px ${monoFont()}`;
+    ctx.textBaseline = "bottom";
+    const fmt = (p: number) => this.series?.priceFormatter().format(p) ?? p.toFixed(2);
+    for (const { level, p, y } of levels) {
+      ctx.strokeStyle = level === 0 || level === 1 ? INK : "rgba(253, 248, 234, 0.55)";
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(left + width, y);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(253, 248, 234, 0.85)";
+      ctx.fillText(`${level} (${fmt(p)})`, left + 4, y - 2);
+    }
+
+    // The swing the levels were measured on
+    ctx.strokeStyle = "rgba(253, 248, 234, 0.45)";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+/** Each Fibonacci level of a retracement with its price. */
+function fibLevels(d: Drawing) {
+  const [a, b] = d.points;
+  return FIB_LEVELS.map((level) => ({ level, p: b.p + (a.p - b.p) * level }));
 }
 
 function axisLabel(get: () => { at: number | null; text: string } | null): ISeriesPrimitiveAxisView {

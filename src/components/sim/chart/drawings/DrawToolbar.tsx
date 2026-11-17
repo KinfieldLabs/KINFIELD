@@ -23,6 +23,12 @@ const ICONS: Record<ToolKind, ReactNode> = {
       <circle cx="8" cy="8" r="1.6" />
     </>
   ),
+  fib: (
+    <>
+      <path d="M1.5 3h13M1.5 6.5h13M1.5 9.5h13M1.5 13h13" strokeLinecap="round" opacity="0.55" />
+      <path d="M3 13l10-10" strokeLinecap="round" />
+    </>
+  ),
 };
 
 /** The column of drawing tools down the left of the chart. */

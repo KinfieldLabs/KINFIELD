@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline";
+export type ToolKind = "trend" | "hline" | "vline" | "fib";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -18,9 +18,20 @@ export interface Drawing {
 }
 
 /** How many points each kind of drawing is made of. A horizontal line uses only its point's price, a vertical line only its time. */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1 };
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2 };
 
-export const TOOL_NAMES: Record<ToolKind, string> = { trend: "Trend line", hline: "Horizontal line", vline: "Vertical line" };
+export const TOOL_NAMES: Record<ToolKind, string> = {
+  trend: "Trend line",
+  hline: "Horizontal line",
+  vline: "Vertical line",
+  fib: "Fib retracement",
+};
+
+/**
+ * Fibonacci retracement levels. Level 0 sits at the second point and 1 at the first, so
+ * drawing from a swing low to a swing high measures pullbacks down from the high.
+ */
+export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618];
 
 const MAX = 200;
 const key = (coin: string) => `kinfield.drawings.${coin}`;
