@@ -88,19 +88,32 @@ export function SmoothScroll() {
     };
     id = requestAnimationFrame(raf);
 
-    const onClick = (e: MouseEvent) => {
-      const a = (e.target as HTMLElement).closest('a[href^="#"]') as HTMLAnchorElement | null;
-      if (!a) return;
-      const target = document.querySelector(a.getAttribute("href")!);
-      if (target) {
-        e.preventDefault();
-        lenis.scrollTo(target as HTMLElement, { offset: -40 });
-      }
+    /** Glides to a section and gives it focus, so keyboard and screen reader users land there too. */
+    const go = (hash: string) => {
+      const target = hash.length > 1 ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+      if (!target) return false;
+      lenis.scrollTo(target, { offset: -40 });
+      if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+      target.focus({ preventScroll: true });
+      return true;
     };
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as HTMLElement).closest('a[href^="#"]') as HTMLAnchorElement | null;
+      const hash = a?.getAttribute("href");
+      if (!hash || !go(hash)) return;
+      e.preventDefault();
+      // Keep the section in the address, so it can be shared, bookmarked and gone back to
+      if (location.hash !== hash) history.pushState(null, "", hash);
+    };
+    // Back and forward move between sections the same way
+    const onPop = () => go(location.hash);
     document.addEventListener("click", onClick);
+    window.addEventListener("popstate", onPop);
     return () => {
       cancelAnimationFrame(id);
       document.removeEventListener("click", onClick);
+      window.removeEventListener("popstate", onPop);
       lenis.destroy();
     };
   }, []);
