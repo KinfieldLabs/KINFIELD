@@ -1,8 +1,8 @@
 import { LineStyle } from "lightweight-charts";
 import type { Candle } from "@/lib/hyperliquid";
-import { bollinger, ema, endsDay, macd, rsi, sma, vwap, type Line } from "@/lib/indicators";
+import { bollinger, ema, endsDay, macd, rsi, sma, stochastic, vwap, type Line } from "@/lib/indicators";
 
-export type StudyKind = "ma" | "ema" | "bb" | "vwap" | "rsi" | "macd";
+export type StudyKind = "ma" | "ema" | "bb" | "vwap" | "rsi" | "macd" | "stoch";
 
 /** An indicator on the chart. */
 export interface Study {
@@ -181,6 +181,28 @@ export const STUDIES: Record<StudyKind, StudyDef> = {
     compute: (bars, [fast, slow, signal]) => macd(closes(bars), fast, slow, signal),
     pane: true,
     levels: [0],
+  },
+  stoch: {
+    kind: "stoch",
+    name: "Stochastic",
+    short: "Stoch",
+    blurb: "Where the close sits in the recent high to low range, from 0 to 100",
+    group: "Momentum",
+    params: [
+      { label: "%K length", value: 14, min: 1, max: 200 },
+      { label: "%K smoothing", value: 1, min: 1, max: 50 },
+      { label: "%D smoothing", value: 3, min: 1, max: 50 },
+    ],
+    lines: (s) => [
+      { key: "k", color: slotColor(s.slot), style: slotStyle(s.slot) },
+      { key: "d", color: slotColor(s.slot + 1), style: slotStyle(s.slot) },
+    ],
+    compute: (bars, [length, smoothK, smoothD]) => stochastic(bars, length, smoothK, smoothD),
+    pane: true,
+    levels: [80, 50, 20],
+    levelBand: [20, 80],
+    range: [0, 100],
+    decimals: 2,
   },
 };
 

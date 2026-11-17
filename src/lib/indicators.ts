@@ -104,6 +104,44 @@ export function rsi(src: readonly number[], n: number): Line {
   return out;
 }
 
+/** Simple moving average of a line that may have gaps; null wherever its window has one. */
+function smaOfLine(src: Line, n: number): Line {
+  const out: Line = new Array(src.length).fill(null);
+  let sum = 0;
+  let gaps = 0;
+  for (let i = 0; i < src.length; i++) {
+    const v = src[i];
+    if (v == null) gaps++;
+    else sum += v;
+    if (i >= n) {
+      const old = src[i - n];
+      if (old == null) gaps--;
+      else sum -= old;
+    }
+    if (i >= n - 1 && gaps === 0) out[i] = sum / n;
+  }
+  return out;
+}
+
+/**
+ * Stochastic: where the close sits in the high to low range of the last `length` bars,
+ * 0 to 100, smoothed into %K, with %D as the average of %K.
+ */
+export function stochastic(bars: readonly Bar[], length: number, smoothK: number, smoothD: number) {
+  const raw: Line = bars.map((b, i) => {
+    if (i < length - 1) return null;
+    let hi = -Infinity;
+    let lo = Infinity;
+    for (let j = i - length + 1; j <= i; j++) {
+      hi = Math.max(hi, bars[j].h);
+      lo = Math.min(lo, bars[j].l);
+    }
+    return hi === lo ? null : (100 * (b.c - lo)) / (hi - lo);
+  });
+  const k = smaOfLine(raw, smoothK);
+  return { k, d: smaOfLine(k, smoothD) };
+}
+
 /**
  * MACD: the gap between a fast and a slow EMA of the close, its EMA as the signal
  * line, and the histogram of MACD minus signal.
