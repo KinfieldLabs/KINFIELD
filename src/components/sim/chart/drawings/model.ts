@@ -35,6 +35,18 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   short: "Short position",
 };
 
+/** Alt plus this letter picks the tool, as on TradingView where they overlap. */
+export const SHORTCUTS: Record<ToolKind, string> = {
+  trend: "T",
+  hline: "H",
+  vline: "V",
+  fib: "F",
+  rect: "R",
+  measure: "M",
+  long: "L",
+  short: "S",
+};
+
 /**
  * Fibonacci retracement levels. Level 0 sits at the second point and 1 at the first, so
  * drawing from a swing low to a swing high measures pullbacks down from the high.

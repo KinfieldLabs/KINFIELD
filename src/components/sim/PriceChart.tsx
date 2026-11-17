@@ -30,7 +30,7 @@ import { useStudies } from "./chart/useStudies";
 import { DrawingController } from "./chart/drawings/DrawingController";
 import { DrawingLayer } from "./chart/drawings/DrawingLayer";
 import { DrawToolbar } from "./chart/drawings/DrawToolbar";
-import { TOOL_NAMES, useDrawings, type Drawing, type Tool } from "./chart/drawings/model";
+import { SHORTCUTS, TOOL_NAMES, useDrawings, type Drawing, type Tool, type ToolKind } from "./chart/drawings/model";
 
 interface Props {
   coin: string;
@@ -337,6 +337,28 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     drawCtl.current?.cancel();
     setTool("cursor");
   }, [coin]);
+
+  // Shortcuts: Alt plus a letter picks a drawing tool, again puts it down; Escape returns to the cursor
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      if (e.key === "Escape") {
+        if (live.current.tool !== "cursor" && !drawLayer.current?.draft) setTool("cursor");
+        return;
+      }
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      // By physical key, since Alt changes the character typed on a Mac
+      const kind = (Object.keys(SHORTCUTS) as ToolKind[]).find((k) => e.code === `Key${SHORTCUTS[k]}`);
+      if (!kind) return;
+      e.preventDefault();
+      drawCtl.current?.cancel();
+      setTool(live.current.tool === kind ? "cursor" : kind);
+      setDrawingsHidden(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Indicators
   useEffect(() => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { TOOL_NAMES, type Tool, type ToolKind } from "./model";
+import { SHORTCUTS, TOOL_NAMES, type Tool, type ToolKind } from "./model";
 
 const ICONS: Record<ToolKind, ReactNode> = {
   trend: (
@@ -80,11 +80,11 @@ export function DrawToolbar({
 
   return (
     <div role="toolbar" aria-label="Drawing tools" aria-orientation="vertical" className="flex w-9 [scrollbar-width:none] shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-line py-1.5">
-      <ToolButton label="Cursor" active={tool === "cursor"} onClick={() => onTool("cursor")}>
+      <ToolButton label="Cursor" keys="Escape" active={tool === "cursor"} onClick={() => onTool("cursor")}>
         <path d="M4 2.5l8 5.8-3.4.7 2 4-1.5.8-2-4-3.1 2.6z" strokeLinejoin="round" />
       </ToolButton>
       {(Object.keys(ICONS) as ToolKind[]).map((k) => (
-        <ToolButton key={k} label={TOOL_NAMES[k]} active={tool === k} onClick={() => onTool(tool === k ? "cursor" : k)}>
+        <ToolButton key={k} label={TOOL_NAMES[k]} keys={`Alt+${SHORTCUTS[k]}`} active={tool === k} onClick={() => onTool(tool === k ? "cursor" : k)}>
           {ICONS[k]}
         </ToolButton>
       ))}
@@ -116,6 +116,7 @@ export function DrawToolbar({
 
 function ToolButton({
   label,
+  keys,
   active = false,
   danger = false,
   disabled = false,
@@ -123,6 +124,8 @@ function ToolButton({
   children,
 }: {
   label: string;
+  /** Keyboard shortcut, shown in the tooltip. */
+  keys?: string;
   active?: boolean;
   danger?: boolean;
   disabled?: boolean;
@@ -135,7 +138,8 @@ function ToolButton({
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}
-      title={label}
+      aria-keyshortcuts={keys}
+      title={keys ? `${label} (${keys.replace("Escape", "Esc")})` : label}
       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-35 ${
         danger ? "bg-short/15 text-short" : active ? "bg-navy-700 text-cream" : "text-muted hover:bg-navy-800 hover:text-cream disabled:hover:bg-transparent"
       }`}
