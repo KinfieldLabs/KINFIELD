@@ -12,7 +12,7 @@ import { useEffect, useRef } from "react";
  * visual follows you down the page.
  */
 
-export type ShapeName = "mark" | "candles" | "network" | "dataset" | "arrow";
+export type ShapeName = "mark" | "candles" | "network" | "dataset" | "chain" | "arrow";
 
 const N = 1400; // particles in the main figure
 const AMBIENT = 240; // drifting particles across the whole page
@@ -120,6 +120,31 @@ function datasetShape(): Pt[] {
   return sampleFill([p], N);
 }
 
+function chainShape(): Pt[] {
+  // A ledger: four blocks, each linked to the one before it
+  const outlines = new Path2D();
+  const hashes = new Path2D();
+  const half = 0.068;
+  const blocks: Pt[] = [
+    [-0.36, 0.12],
+    [-0.12, 0.04],
+    [0.12, -0.04],
+    [0.36, -0.12],
+  ];
+  blocks.forEach(([x, y], k) => {
+    outlines.rect((x - half) * S, (y - half) * S, half * 2 * S, half * 2 * S);
+    // a "hash" inside each block: two short bars
+    hashes.rect((x - half * 0.55) * S, (y - half * 0.3) * S, half * 1.1 * S, 0.018 * S);
+    hashes.rect((x - half * 0.55) * S, (y + half * 0.15) * S, half * 0.7 * S, 0.018 * S);
+    if (k) {
+      const [px, py] = blocks[k - 1];
+      outlines.moveTo((px + half) * S, py * S);
+      outlines.lineTo((x - half) * S, y * S);
+    }
+  });
+  return sampleFill([hashes], N, { path: outlines, width: 0.022 * S });
+}
+
 function arrowShape(): Pt[] {
   const line = new Path2D();
   const pts: Pt[] = [
@@ -143,6 +168,7 @@ const GENERATORS: Record<ShapeName, () => Pt[]> = {
   candles: candlesShape,
   network: networkShape,
   dataset: datasetShape,
+  chain: chainShape,
   arrow: arrowShape,
 };
 

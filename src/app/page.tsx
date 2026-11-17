@@ -24,10 +24,40 @@ const steps = [
 ];
 
 const features = [
-  ["Live market data", "Mid prices and candles stream straight from Hyperliquid's public API."],
-  ["Labeled trade dataset", "Each round trip is captured with the market state at entry. Export it as JSONL."],
-  ["Apprentice agent", "A baseline agent trains on your trades in the browser and shows how it would act right now."],
-  ["Strategy tags", "Momentum, mean reversion, breakout, news: structure your intent so it can be learned."],
+  [
+    "Pro trading terminal",
+    "Every Hyperliquid perpetual with live candles, order book and trades. Market and limit orders, take profit, stop loss and up to 20x leverage.",
+  ],
+  [
+    "Verified ledger",
+    "Sign in with GitHub and every fill is priced by Hyperliquid the moment it arrives, then written to a hash-chained record no one can quietly edit.",
+  ],
+  [
+    "Open dataset",
+    "Opt in and your trades are published nightly to GitHub under CC BY 4.0, with a script anyone can run to check every one of them.",
+  ],
+  [
+    "Agents that trade on their own",
+    "After 30 closed trades your apprentice trades its own account every 15 minutes, judged on the same ledger with a public readiness report.",
+  ],
+];
+
+const proof = [
+  {
+    n: "01",
+    title: "Priced on arrival",
+    body: "Each fill takes a fresh Hyperliquid price the moment your order reaches the server, timestamped by Hyperliquid. Never a cached price, never the browser's word.",
+  },
+  {
+    n: "02",
+    title: "Chained, not editable",
+    body: "Every fill carries the hash of the one before it. Change a single trade and every hash after it breaks. Stops are replayed against real price history, so they can't be dodged.",
+  },
+  {
+    n: "03",
+    title: "Open to check",
+    body: "Shared accounts are published nightly with verify.mjs, which recomputes every chain. Written reasons stay private behind a salted commitment unless you choose to share them.",
+  },
 ];
 
 const i = (n: number) => ({ "--i": n }) as CSSProperties;
@@ -184,8 +214,61 @@ export default function Home() {
           </div>
         </Stage>
 
+        {/* Proof: the verified ledger and the open dataset */}
+        <Stage id="proof" shape="chain" side="right">
+          <InView>
+            <p className="reveal t-label text-cyan">On the record</p>
+          </InView>
+          <Lines
+            className="t-h1 mt-6"
+            lines={[
+              "Every trade,",
+              <span key="record">
+                on the <span className="text-cyan">record.</span>
+              </span>,
+            ]}
+          />
+          <InView className="mt-8">
+            <p className="reveal t-body max-w-lg" style={i(0)}>
+              A track record only matters if no one can rewrite it. Signed-in trades never trust the browser, and the
+              data agents learn from is out in the open for anyone to verify.
+            </p>
+          </InView>
+          <div className="mt-12">
+            {proof.map((s, k) => (
+              <InView key={s.n} className="pb-8" style={{ "--d": `${k * 80}ms` } as CSSProperties}>
+                <div className="rule" />
+                <div className="grid grid-cols-[56px_1fr] gap-4 pt-7">
+                  <span className="reveal font-mono text-sm text-cyan" style={i(0)}>
+                    {s.n}
+                  </span>
+                  <div>
+                    <h3 className="reveal t-h3" style={i(1)}>
+                      {s.title}
+                    </h3>
+                    <p className="reveal t-body mt-3" style={i(2)}>
+                      {s.body}
+                    </p>
+                  </div>
+                </div>
+              </InView>
+            ))}
+          </div>
+          <InView>
+            <a
+              href="https://github.com/KinfieldLabs/kinfield-datasets"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="reveal link-ghost !text-cyan text-sm font-semibold"
+              style={i(0)}
+            >
+              Browse the open dataset on GitHub
+            </a>
+          </InView>
+        </Stage>
+
         {/* CTA: rising arrow */}
-        <Stage shape="arrow" side="right">
+        <Stage shape="arrow" side="left">
           <Lines className="t-h1" lines={["Your next trade", "could teach", "an agent."]} />
           <InView className="mt-10 flex flex-wrap items-center gap-8">
             <ConstellationButton href="/simulate" className="reveal" style={i(0)}>
