@@ -1,6 +1,6 @@
 import type { IChartApi } from "lightweight-charts";
 import type { DrawingLayer } from "./DrawingLayer";
-import { moveHandle, newId, POINTS, shape, type Anchor, type Drawing, type Tool } from "./model";
+import { BRUSH_MAX, moveHandle, newId, POINTS, shape, type Anchor, type Drawing, type Tool } from "./model";
 
 interface Hooks {
   tool(): Tool;
@@ -114,7 +114,9 @@ export class DrawingController {
     this.pressed = true;
     this.pressAt = at;
     this.start = a;
-    this.layer.update({ draft: { id: newId(), kind: tool, points: shape(tool, a, a) } });
+    // A brush stroke grows a point at a time as it's drawn
+    const points = tool === "brush" ? [this.layer.anchorAt(at.x, at.y, false, true) ?? a] : shape(tool, a, a);
+    this.layer.update({ draft: { id: newId(), kind: tool, points } });
     if (POINTS[tool] === 1) this.finish();
   };
 
@@ -184,6 +186,15 @@ export class DrawingController {
     this.pressAt = null;
     if (!draft || !from) return;
     const at = this.at(e);
+    // A brush stroke ends when it's let go; one too short to see is dropped
+    if (draft.kind === "brush") {
+      if (draft.points.length >= 2) this.finish();
+      else {
+        this.cancel();
+        this.hooks.done(false);
+      }
+      return;
+    }
     // A drag ends the drawing where it's let go; a click waits for the next click
     if (at.inside && Math.hypot(at.x - from.x, at.y - from.y) > DRAG_PX) {
       this.place(draft, at);
@@ -207,6 +218,16 @@ export class DrawingController {
   };
 
   private place(d: Drawing, at: At) {
+    if (d.kind === "brush") {
+      const last = d.points[d.points.length - 1];
+      const lx = this.layer.toX(last.t);
+      const ly = this.layer.toY(last.p);
+      // A point every few pixels keeps the stroke smooth without bloating it
+      if (lx != null && ly != null && Math.hypot(at.x - lx, at.y - ly) < 3) return;
+      const a = this.layer.anchorAt(at.x, at.y, false, true);
+      if (a && d.points.length < BRUSH_MAX) this.layer.update({ draft: { ...d, points: [...d.points, a] } });
+      return;
+    }
     const a = this.layer.anchorAt(at.x, at.y);
     if (a && this.start) this.layer.update({ draft: { ...d, points: shape(d.kind, this.start, a) } });
   }

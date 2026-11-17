@@ -49,6 +49,7 @@ const ICONS: Record<ToolKind, ReactNode> = {
     </>
   ),
   text: <path d="M3 3.5h10M8 3.5v9.5M6 13h4" strokeLinecap="round" />,
+  brush: <path d="M2.5 12c2-3 3.5-1 5-3.5s1.5-5 3.5-5.5 2.5 1.5 2.5 3" strokeLinecap="round" strokeLinejoin="round" />,
   arrow: <path d="M3 13L13 3M7 3h6v6" strokeLinecap="round" strokeLinejoin="round" />,
   fibext: (
     <>
@@ -79,7 +80,7 @@ const ICONS: Record<ToolKind, ReactNode> = {
 };
 
 /** Tools in the column, lines first. */
-const ORDER: ToolKind[] = ["trend", "ray", "xline", "channel", "hline", "vline", "fib", "fibext", "rect", "measure", "long", "short", "arrow", "text"];
+const ORDER: ToolKind[] = ["trend", "ray", "xline", "channel", "hline", "vline", "fib", "fibext", "rect", "measure", "long", "short", "arrow", "brush", "text"];
 
 /** The column of drawing tools down the left of the chart. */
 export function DrawToolbar({

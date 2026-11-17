@@ -192,7 +192,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
    * candle and, with the magnet on, its price to that candle's nearest open, high, low
    * or close.
    */
-  anchorAt(x: number, y: number, snap = this.magnet): Anchor | null {
+  anchorAt(x: number, y: number, snap = this.magnet, freeTime = false): Anchor | null {
     const bars = this.bars();
     const series = this.series;
     if (!this.chart || !series || !bars.length) return null;
@@ -201,7 +201,14 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     const x1 = ts.logicalToCoordinate(1 as Logical);
     let p: number | null = series.coordinateToPrice(y);
     if (x0 == null || x1 == null || x1 === x0 || p == null) return null;
-    const i = Math.round((x - x0) / (x1 - x0));
+    const f = (x - x0) / (x1 - x0);
+    const i = Math.round(f);
+    if (freeTime) {
+      // Between candles, for freehand strokes that shouldn't step from candle to candle
+      const lo = Math.floor(f);
+      const t0 = logicalToTime(bars, lo, this.stepMs());
+      return { t: t0 + (f - lo) * (logicalToTime(bars, lo + 1, this.stepMs()) - t0), p };
+    }
     const bar = snap ? bars[i] : undefined;
     if (bar) {
       let best = Infinity;
@@ -229,7 +236,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   hit(x: number, y: number): Hit | null {
     if (this.hidden || this.locked) return null;
     const sel = this.drawings.find((d) => d.id === this.selected);
-    const selPts = sel && this.screen(sel);
+    const selPts = sel && sel.kind !== "brush" && this.screen(sel);
     if (sel && selPts) {
       const i = selPts.findIndex(([hx, hy]) => Math.hypot(hx - x, hy - y) <= HANDLE_R + 4);
       if (i >= 0) return { id: sel.id, handle: i };
@@ -254,6 +261,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       case "trend":
       case "arrow":
         return toSegment(at, pts[0], pts[1]) <= REACH;
+      case "brush":
+        return pts.some((p, i) => i > 0 && toSegment(at, pts[i - 1], p) <= REACH);
       case "ray":
       case "xline": {
         const [p, q] = extend(pts[0], pts[1], d.kind === "xline");
@@ -328,7 +337,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     const all = this.draft ? [...this.drawings, this.draft] : this.drawings;
     const hlines = all.filter((x) => x.kind === "hline").map((x) => x.id);
     const vlines = all.filter((x) => x.kind === "vline").map((x) => x.id);
-    const pointed = d && d.kind !== "hline" && d.kind !== "vline" ? d : null;
+    const pointed = d && d.kind !== "hline" && d.kind !== "vline" && d.kind !== "brush" ? d : null;
     const key = [pointed ? `${pointed.id}:${pointed.points.length}` : "", ...hlines, "|", ...vlines].join(",");
     if (key === this.axisKey) return;
     this.axisKey = key;
@@ -346,7 +355,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     const n = pointed?.points.length ?? 0;
     const point = (i: number) => () => {
       const a = this.active();
-      return a && a.kind !== "hline" && a.kind !== "vline" ? a.points[i] : undefined;
+      return a && a.kind !== "hline" && a.kind !== "vline" && a.kind !== "brush" ? a.points[i] : undefined;
     };
     this.priceViews = [
       ...hlines.map((id) => price(() => this.byId(id)?.points[0])),
@@ -369,7 +378,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         const active = d === this.draft || d.id === this.selected;
         ctx.save();
         this.paint(ctx, d, pts, active || d.id === this.hovered, mediaSize);
-        if (active) for (const p of pts) handle(ctx, p);
+        // A brush stroke shows no handles: it moves as a whole
+        if (active && d.kind !== "brush") for (const p of pts) handle(ctx, p);
         ctx.restore();
       }
     });
@@ -468,6 +478,15 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
         ctx.setLineDash([]);
         break;
       }
+      case "brush":
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = hot ? 2.5 : 2;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.stroke();
+        break;
       case "arrow":
         ctx.strokeStyle = INK;
         ctx.lineWidth = hot ? 2.5 : 2;
