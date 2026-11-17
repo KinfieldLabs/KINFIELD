@@ -4,8 +4,8 @@ import { moveHandle, newId, POINTS, shape, type Anchor, type Drawing, type Tool 
 
 interface Hooks {
   tool(): Tool;
-  /** A drawing was placed or cancelled: back to the cursor. */
-  done(): void;
+  /** A drawing was placed, or cancelled when `placed` is false. */
+  done(placed: boolean): void;
   drawings(): Drawing[];
   save(next: Drawing[]): void;
   select(id: string | null): void;
@@ -196,7 +196,7 @@ export class DrawingController {
     if (e.key === "Escape") {
       if (this.layer.draft) {
         this.cancel();
-        this.hooks.done();
+        this.hooks.done(false);
       } else if (this.layer.selected) this.select(null);
     } else if ((e.key === "Delete" || e.key === "Backspace") && this.layer.selected && !this.drag) {
       e.preventDefault();
@@ -222,6 +222,6 @@ export class DrawingController {
       this.select(d.id);
       if (d.kind === "text") this.hooks.edit(d.id);
     }
-    this.hooks.done();
+    this.hooks.done(true);
   }
 }

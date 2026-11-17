@@ -118,17 +118,19 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const [magnet, setMagnet] = useState(false);
   const [drawingsHidden, setDrawingsHidden] = useState(false);
   const [drawingsLocked, setDrawingsLocked] = useState(false);
+  const [stayDrawing, setStayDrawing] = useState(false);
   useEffect(() => {
     try {
       setMagnet(localStorage.getItem("kinfield.magnet") === "1");
       setDrawingsLocked(localStorage.getItem("kinfield.lockDrawings") === "1");
+      setStayDrawing(localStorage.getItem("kinfield.stayDrawing") === "1");
     } catch {}
   }, []);
   const drawLayer = useRef<DrawingLayer | null>(null);
   const drawCtl = useRef<DrawingController | null>(null);
-  const live = useRef({ tool, drawings, saveDrawings, interval, undo, redo });
+  const live = useRef({ tool, drawings, saveDrawings, interval, undo, redo, stay: false });
   useEffect(() => {
-    live.current = { tool, drawings, saveDrawings, interval, undo, redo };
+    live.current = { tool, drawings, saveDrawings, interval, undo, redo, stay: stayDrawing };
   });
   /** Bar under the crosshair, for the legend; null shows the latest. */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -185,7 +187,10 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     drawLayer.current = layer;
     drawCtl.current = new DrawingController(el.current, c, layer, {
       tool: () => live.current.tool,
-      done: () => setTool("cursor"),
+      // Drawing mode keeps the tool after each drawing; cancelling always puts it down
+      done: (placed: boolean) => {
+        if (!placed || !live.current.stay) setTool("cursor");
+      },
       drawings: () => live.current.drawings,
       save: (next: Drawing[]) => live.current.saveDrawings(next),
       select: setSelectedDrawing,
@@ -535,6 +540,13 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
           }}
           hidden={drawingsHidden}
           onHidden={setDrawingsHidden}
+          stay={stayDrawing}
+          onStay={(on) => {
+            setStayDrawing(on);
+            try {
+              localStorage.setItem("kinfield.stayDrawing", on ? "1" : "0");
+            } catch {}
+          }}
           locked={drawingsLocked}
           onLocked={(on) => {
             setDrawingsLocked(on);

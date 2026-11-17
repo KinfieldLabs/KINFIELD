@@ -90,6 +90,8 @@ export function DrawToolbar({
   onHidden,
   locked,
   onLocked,
+  stay,
+  onStay,
   count,
   onClear,
 }: {
@@ -101,6 +103,8 @@ export function DrawToolbar({
   onHidden: (hidden: boolean) => void;
   locked: boolean;
   onLocked: (locked: boolean) => void;
+  stay: boolean;
+  onStay: (stay: boolean) => void;
   count: number;
   onClear: () => void;
 }) {
@@ -126,6 +130,10 @@ export function DrawToolbar({
       <ToolButton label="Magnet: snap points to candle prices" active={magnet} onClick={() => onMagnet(!magnet)}>
         <path d="M4.5 2.5v5.5a3.5 3.5 0 0 0 7 0V2.5" strokeLinecap="round" />
         <path d="M4.5 5h2M9.5 5h2" strokeLinecap="round" />
+      </ToolButton>
+      <ToolButton label="Stay in drawing mode" active={stay} onClick={() => onStay(!stay)}>
+        <path d="M10.5 2.5l3 3-7.5 7.5H3v-3z" strokeLinejoin="round" />
+        <path d="M9 4l3 3" />
       </ToolButton>
       <ToolButton label={locked ? "Unlock drawings" : "Lock drawings"} active={locked} onClick={() => onLocked(!locked)}>
         <rect x="3.5" y="7" width="9" height="6.5" rx="1.2" />
