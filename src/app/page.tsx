@@ -300,6 +300,15 @@ export default function Home() {
               <p className="max-w-xs text-sm font-light text-muted">
                 Simulated trading only. Not financial advice. Market data via Hyperliquid.
               </p>
+              <a
+                href="https://hyperliquid.xyz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group mt-1 inline-flex w-fit items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted transition-colors duration-300 hover:text-cream"
+              >
+                Powered by Hyperliquid
+                <HyperliquidMark className="h-[15px] w-auto text-[#97fce4] transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-110" />
+              </a>
             </div>
             <nav aria-label="Footer" className="grid grid-cols-2 gap-x-10 gap-y-3 sm:grid-cols-3">
               {FOOTER_LINKS.map((l) =>
