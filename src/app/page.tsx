@@ -31,7 +31,7 @@ const features = [
   ],
   [
     "Verified ledger",
-    "Sign in with GitHub and every fill is priced by Hyperliquid the moment it arrives, then written to a hash-chained record no one can quietly edit.",
+    "Sign in with GitHub and every fill is priced by Hyperliquid the moment it arrives, then written to a hash-chained record where any later edit shows.",
   ],
   [
     "Open dataset",
@@ -51,8 +51,8 @@ const proof = [
   },
   {
     n: "02",
-    title: "Chained, not editable",
-    body: "Every fill carries the hash of the one before it. Change a single trade and every hash after it breaks. Stops are replayed against real price history, so they can't be dodged.",
+    title: "Tamper-evident",
+    body: "Every fill carries the hash of the one before it. Change a single trade and every hash after it breaks, which shows against the published history. Stops are replayed against real price history, so they can't be dodged.",
   },
   {
     n: "03",
@@ -239,8 +239,8 @@ export default function Home() {
           />
           <InView className="mt-8">
             <p className="reveal t-body max-w-lg" style={i(0)}>
-              A track record only matters if no one can rewrite it. Signed-in trades never trust the browser, and the
-              data agents learn from is out in the open for anyone to verify.
+              A track record only matters if changes to it would show. Signed-in trades never trust the browser, and
+              shared records are published so anyone can check them against the history.
             </p>
           </InView>
           <div className="mt-12">
