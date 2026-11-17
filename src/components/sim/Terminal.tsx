@@ -18,6 +18,7 @@ import { MarketBar } from "./MarketBar";
 import { OrderBook } from "./OrderBook";
 import { OrderTicket } from "./OrderTicket";
 import { PriceChart } from "./PriceChart";
+import { Guide, guideSeen } from "./Guide";
 
 /** A small preference remembered in this browser (market, chart interval). */
 function useRemembered<T extends string>(key: string, initial: T, valid: (v: string) => boolean = () => true) {
@@ -41,6 +42,11 @@ function useRemembered<T extends string>(key: string, initial: T, valid: (v: str
 export function Terminal() {
   const { me, signOut, saveSharing } = useMe();
   const [sharingOpen, setSharingOpen] = useState(false);
+  // The guide opens by itself on a first visit and from the header after that
+  const [guideOpen, setGuideOpen] = useState(false);
+  useEffect(() => {
+    if (!guideSeen()) setGuideOpen(true);
+  }, []);
   const ledger = useLedger(!!me?.user);
   const { state, fire, poke } = ledger;
   const ready = !!me && ledger.ready;
@@ -137,6 +143,9 @@ export function Terminal() {
           <Link href="/agent" className="rounded-md px-2.5 py-1 text-muted hover:text-cream">
             Your agent
           </Link>
+          <button onClick={() => setGuideOpen(true)} className="rounded-md px-2.5 py-1 text-muted hover:text-cream">
+            How it works
+          </button>
         </nav>
         <div className="ml-auto flex items-center gap-x-5">
           <div className="hidden items-center gap-x-5 text-xs sm:flex">
@@ -151,7 +160,10 @@ export function Terminal() {
         </div>
       </header>
 
+      <Guide open={guideOpen} onClose={() => setGuideOpen(false)} />
+      <div data-guide="market">
       <MarketBar coin={coin} markets={markets} live={live} price={mid} status={status} onPick={selectCoin} />
+      </div>
 
       {me && !me.user && (
         <div className="border-b border-line bg-navy-900/60 px-3 py-1.5 text-xs text-muted">
@@ -193,7 +205,7 @@ export function Terminal() {
           />
         </section>
 
-        <aside className="tpanel flex flex-col overflow-y-auto scroll-thin lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:min-h-0">
+        <aside data-guide="ticket" className="tpanel flex flex-col overflow-y-auto scroll-thin lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:min-h-0">
           <OrderTicket
             coin={coin}
             mid={mid}
@@ -222,7 +234,7 @@ export function Terminal() {
           />
         </section>
 
-        <section className="h-[340px] lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:h-auto lg:min-h-0">
+        <section data-guide="blotter" className="h-[340px] lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:h-auto lg:min-h-0">
           <Blotter
             coin={coin}
             positions={state.positions}
