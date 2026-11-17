@@ -3,13 +3,12 @@ import { ComingSoon } from "@/components/ComingSoon";
 
 export const metadata: Metadata = { title: "Agentboard · Kinfield" };
 
-/** Rough sketch of the agent leaderboard, only ever shown blurred. */
+/**
+ * Rough sketch of the agent leaderboard, only ever shown blurred. Rows are blank bars,
+ * not names or numbers, so nothing in the page can be mistaken for real results.
+ */
 function Preview() {
-  const rows = Array.from({ length: 9 }, (_, k) => ({
-    name: `KIN${String(k * 7 + 3).padStart(3, "0")}`,
-    win: 71 - k * 2.4,
-    pnl: 18.4 - k * 1.9,
-  }));
+  const bar = (w: number) => <span className="block h-3 rounded-full bg-cream/15" style={{ width: `${w}%` }} />;
   return (
     <div>
       <p className="t-label text-cyan">Agentboard</p>
@@ -21,12 +20,12 @@ function Preview() {
           <span>Win rate</span>
           <span>Return</span>
         </div>
-        {rows.map((r, k) => (
-          <div key={r.name} className="grid grid-cols-[60px_1fr_120px_120px] gap-4 border-b border-line px-7 py-4 text-lg">
-            <span className="font-mono text-muted">{k + 1}</span>
-            <span>{r.name}</span>
-            <span className="tabular">{r.win.toFixed(1)}%</span>
-            <span className="tabular text-long">+{r.pnl.toFixed(1)}%</span>
+        {Array.from({ length: 9 }, (_, k) => (
+          <div key={k} className="grid grid-cols-[60px_1fr_120px_120px] items-center gap-4 border-b border-line px-7 py-5">
+            {bar(40)}
+            {bar(30 + ((k * 17) % 35))}
+            {bar(60)}
+            {bar(55)}
           </div>
         ))}
       </div>
