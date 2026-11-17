@@ -30,7 +30,7 @@ import { useStudies } from "./chart/useStudies";
 import { DrawingController } from "./chart/drawings/DrawingController";
 import { DrawingLayer } from "./chart/drawings/DrawingLayer";
 import { DrawToolbar } from "./chart/drawings/DrawToolbar";
-import { useDrawings, type Drawing, type Tool } from "./chart/drawings/model";
+import { TOOL_NAMES, useDrawings, type Drawing, type Tool } from "./chart/drawings/model";
 
 interface Props {
   coin: string;
@@ -111,6 +111,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   // Drawings: the controller reads the latest tool, drawings and interval through refs
   const [tool, setTool] = useState<Tool>("cursor");
   const { drawings, save: saveDrawings } = useDrawings(coin);
+  const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null);
   const drawLayer = useRef<DrawingLayer | null>(null);
   const drawCtl = useRef<DrawingController | null>(null);
   const live = useRef({ tool, drawings, saveDrawings, interval });
@@ -166,6 +167,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     const layer = new DrawingLayer(
       () => bars.current,
       () => INTERVAL_MS[live.current.interval],
+      (ms) => crosshairTime(sec(ms)),
     );
     candles.current.attachPrimitive(layer);
     drawLayer.current = layer;
@@ -174,6 +176,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
       done: () => setTool("cursor"),
       drawings: () => live.current.drawings,
       save: (next: Drawing[]) => live.current.saveDrawings(next),
+      select: setSelectedDrawing,
     });
 
     // Scrolling or zooming out near the oldest candle loads the history before it
@@ -310,7 +313,12 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   // Drawings
   useEffect(() => {
     drawLayer.current?.update({ drawings });
-  }, [drawings]);
+    // A selection whose drawing is gone (removed, or another market) clears
+    if (selectedDrawing && !drawings.some((d) => d.id === selectedDrawing)) drawCtl.current?.select(null);
+  }, [drawings, selectedDrawing]);
+  useEffect(() => {
+    drawLayer.current?.update({ editable: tool === "cursor", hovered: null });
+  }, [tool]);
   useEffect(() => {
     drawCtl.current?.cancel();
     setTool("cursor");
@@ -404,6 +412,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const ref = legend?.c ?? 1;
   const chg = legend ? legend.c / legend.o - 1 : 0;
   const idx = hoverIdx ?? bars.current.length - 1;
+  const selectedKind = drawings.find((d) => d.id === selectedDrawing)?.kind;
   const rowProps = (s: Study) => {
     const decimals = STUDIES[s.kind].decimals;
     return {
@@ -495,6 +504,25 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
                   <StudyRow {...rowProps(s)} settingsUp />
                 </div>
               ))}
+          {selectedKind && (
+            <div className="absolute bottom-9 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-navy-900/95 py-1 pl-2.5 pr-1 text-xs shadow-lg shadow-black/40">
+              <span className="text-cream">{TOOL_NAMES[selectedKind]}</span>
+              <button
+                onClick={() => {
+                  const id = selectedDrawing;
+                  drawCtl.current?.select(null);
+                  saveDrawings(drawings.filter((d) => d.id !== id));
+                }}
+                aria-label="Delete drawing"
+                title="Delete (Del)"
+                className="rounded-md p-1 text-muted hover:bg-short/15 hover:text-short"
+              >
+                <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+                  <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.6 4.5l.6 8.5h5.6l.6-8.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          )}
           {!atLatest && !loading && (
             <button
               onClick={toLatest}

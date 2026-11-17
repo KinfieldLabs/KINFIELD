@@ -4,7 +4,9 @@ import type {
   IPrimitivePaneView,
   ISeriesApi,
   ISeriesPrimitive,
+  ISeriesPrimitiveAxisView,
   Logical,
+  PrimitiveHoveredItem,
   SeriesAttachedParameter,
   SeriesType,
   Time,
@@ -17,7 +19,10 @@ type Point = [number, number];
 
 /** Drawing color: the site's cream, clear of the green, red and indicator colors. */
 export const INK = "#fdf8ea";
+const NAVY = "#01154d";
 const HANDLE_R = 4.5;
+/** How close, in pixels, a press must be to a line to pick it. */
+const REACH = 6;
 
 /** Position of a time among the candles: whole numbers are candles, fractions fall between, and it runs on past either end. */
 export function timeToLogical(bars: readonly Candle[], t: number, step: number): number {
@@ -42,20 +47,43 @@ export function logicalToTime(bars: readonly Candle[], i: number, step: number):
   return bars[i].t;
 }
 
+/** Distance from a point to the segment a to b. */
+function toSegment([x, y]: Point, [x1, y1]: Point, [x2, y2]: Point) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  const k = len2 ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len2)) : 0;
+  return Math.hypot(x - (x1 + k * dx), y - (y1 + k * dy));
+}
+
+/** What a press landed on: a drawing, and which of its points if it was a handle. */
+export interface Hit {
+  id: string;
+  handle: number | null;
+}
+
 /** Draws the user's lines and shapes over the candles and converts between screen and chart positions. */
 export class DrawingLayer implements ISeriesPrimitive<Time> {
   drawings: Drawing[] = [];
   /** The drawing being placed, before it is saved. */
   draft: Drawing | null = null;
+  selected: string | null = null;
+  hovered: string | null = null;
+  /** False while a drawing tool is in use, so existing drawings don't react to the pointer. */
+  editable = true;
 
   private chart: IChartApi | null = null;
   private series: ISeriesApi<SeriesType> | null = null;
   private requestUpdate: (() => void) | null = null;
   private readonly views: readonly IPrimitivePaneView[];
+  private priceViews: ISeriesPrimitiveAxisView[] = [];
+  private timeViews: ISeriesPrimitiveAxisView[] = [];
+  private axisKey = "";
 
   constructor(
     private readonly bars: () => readonly Candle[],
     private readonly stepMs: () => number,
+    private readonly fmtTime: (ms: number) => string,
   ) {
     const renderer: IPrimitivePaneRenderer = { draw: (target) => this.render(target) };
     this.views = [{ zOrder: () => "top", renderer: () => renderer }];
@@ -75,8 +103,28 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return this.views;
   }
 
-  update(patch: { drawings?: Drawing[]; draft?: Drawing | null }) {
+  priceAxisViews() {
+    return this.priceViews;
+  }
+
+  timeAxisViews() {
+    return this.timeViews;
+  }
+
+  updateAllViews() {
+    this.refreshAxis();
+  }
+
+  /** Points the chart's cursor at drawings that can be picked or dragged. */
+  hitTest(x: number, y: number): PrimitiveHoveredItem | null {
+    if (!this.editable || this.draft) return null;
+    const h = this.hit(x, y);
+    return h ? { externalId: h.id, zOrder: "top", cursorStyle: h.handle != null ? "move" : "pointer" } : null;
+  }
+
+  update(patch: Partial<Pick<DrawingLayer, "drawings" | "draft" | "selected" | "hovered" | "editable">>) {
     Object.assign(this, patch);
+    this.refreshAxis();
     this.requestUpdate?.();
   }
 
@@ -121,6 +169,56 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return out;
   }
 
+  /** The drawing under a screen point: the selected drawing's handles first, then the topmost drawing. */
+  hit(x: number, y: number): Hit | null {
+    const sel = this.drawings.find((d) => d.id === this.selected);
+    const selPts = sel && this.screen(sel);
+    if (sel && selPts) {
+      const i = selPts.findIndex(([hx, hy]) => Math.hypot(hx - x, hy - y) <= HANDLE_R + 4);
+      if (i >= 0) return { id: sel.id, handle: i };
+    }
+    for (let k = this.drawings.length - 1; k >= 0; k--) {
+      const d = this.drawings[k];
+      const pts = this.screen(d);
+      if (pts && this.near(d, pts, [x, y])) return { id: d.id, handle: null };
+    }
+    return null;
+  }
+
+  private near(d: Drawing, pts: Point[], at: Point): boolean {
+    switch (d.kind) {
+      case "trend":
+        return toSegment(at, pts[0], pts[1]) <= REACH;
+    }
+  }
+
+  /** The drawing whose points show on the axes: the one being placed, else the selected one. */
+  private active(): Drawing | null {
+    return this.draft ?? this.drawings.find((d) => d.id === this.selected) ?? null;
+  }
+
+  /** Axis labels for the active drawing's points; rebuilt only when that drawing changes, as the chart expects. */
+  private refreshAxis() {
+    const d = this.active();
+    const key = d ? `${d.id}:${d.points.length}` : "";
+    if (key === this.axisKey) return;
+    this.axisKey = key;
+    const n = d?.points.length ?? 0;
+    const point = (i: number) => this.active()?.points[i];
+    this.priceViews = Array.from({ length: n }, (_, i) =>
+      axisLabel(() => {
+        const a = point(i);
+        return a ? { at: this.toY(a.p), text: this.series?.priceFormatter().format(a.p) ?? "" } : null;
+      }),
+    );
+    this.timeViews = Array.from({ length: n }, (_, i) =>
+      axisLabel(() => {
+        const a = point(i);
+        return a ? { at: this.toX(a.t), text: this.fmtTime(a.t) } : null;
+      }),
+    );
+  }
+
   private render(target: Target) {
     const list = this.draft ? [...this.drawings, this.draft] : this.drawings;
     if (!list.length) return;
@@ -128,20 +226,20 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       for (const d of list) {
         const pts = this.screen(d);
         if (!pts) continue;
-        const active = d === this.draft;
+        const active = d === this.draft || d.id === this.selected;
         ctx.save();
-        this.paint(ctx, d, pts);
+        this.paint(ctx, d, pts, active || d.id === this.hovered);
         if (active) for (const p of pts) handle(ctx, p);
         ctx.restore();
       }
     });
   }
 
-  private paint(ctx: CanvasRenderingContext2D, d: Drawing, [a, b]: Point[]) {
+  private paint(ctx: CanvasRenderingContext2D, d: Drawing, [a, b]: Point[], hot: boolean) {
     switch (d.kind) {
       case "trend":
         ctx.strokeStyle = INK;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = hot ? 2.5 : 2;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(a[0], a[1]);
@@ -152,10 +250,20 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   }
 }
 
+function axisLabel(get: () => { at: number | null; text: string } | null): ISeriesPrimitiveAxisView {
+  return {
+    coordinate: () => get()?.at ?? -1000,
+    text: () => get()?.text ?? "",
+    textColor: () => NAVY,
+    backColor: () => INK,
+    visible: () => get()?.at != null,
+  };
+}
+
 function handle(ctx: CanvasRenderingContext2D, [x, y]: Point) {
   ctx.beginPath();
   ctx.arc(x, y, HANDLE_R, 0, Math.PI * 2);
-  ctx.fillStyle = "#01154d";
+  ctx.fillStyle = NAVY;
   ctx.fill();
   ctx.lineWidth = 1.5;
   ctx.strokeStyle = INK;
