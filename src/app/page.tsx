@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
-import Link from "next/link";
 import { Constellation, type ShapeName } from "@/components/Constellation";
 import { Logo, Mark } from "@/components/Logo";
 import { InView, Lines, SmoothScroll } from "@/components/motion";
+import { ConstellationButton } from "@/components/ConstellationButton";
 import { SiteNav } from "@/components/SiteNav";
 
 const steps = [
@@ -188,9 +188,9 @@ export default function Home() {
         <Stage shape="arrow" side="right">
           <Lines className="t-h1" lines={["Your next trade", "could teach", "an agent."]} />
           <InView className="mt-10 flex flex-wrap items-center gap-8">
-            <Link href="/simulate" className="reveal btn-primary" style={i(0)}>
-              Launch simulator <span className="arrow">→</span>
-            </Link>
+            <ConstellationButton href="/simulate" className="reveal" style={i(0)}>
+              Launch simulator
+            </ConstellationButton>
             <p className="reveal t-body" style={i(1)}>
               $100,000 in simulated capital. Live markets. Zero risk.
             </p>
