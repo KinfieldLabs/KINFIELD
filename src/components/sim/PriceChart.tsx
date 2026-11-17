@@ -22,6 +22,10 @@ import { fmtCompact, fmtPct, fmtPxAt, pxDecimals, tone } from "@/lib/format";
 import { useHl } from "@/lib/hl-socket";
 import { fetchCandles, fetchCandlesBefore, INTERVAL_MS, INTERVALS, type Candle, type Interval } from "@/lib/hyperliquid";
 import { liquidationPx, type ClosedTrade, type Order, type Position } from "@/lib/sim";
+import { IndicatorMenu } from "./chart/IndicatorMenu";
+import { StudyLayer } from "./chart/StudyLayer";
+import { STUDIES, studyLabel } from "./chart/studies";
+import { useStudies } from "./chart/useStudies";
 
 interface Props {
   coin: string;
@@ -93,6 +97,10 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const [legend, setLegend] = useState<Candle | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const studyLayer = useRef<StudyLayer | null>(null);
+  const { studies, full, add, remove, toggle } = useStudies();
+  /** Bar under the crosshair, for the legend; null shows the latest. */
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   // Chart setup
   useEffect(() => {
@@ -135,6 +143,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     volume.current = c.addSeries(HistogramSeries, { priceScaleId: "", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
     volume.current.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     markers.current = createSeriesMarkers(candles.current, []);
+    studyLayer.current = new StudyLayer(c);
 
     // Scrolling or zooming out near the oldest candle loads the history before it
     const loadOlder = async () => {
@@ -157,6 +166,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         bars.current = [...data, ...bars.current];
         candles.current.setData(bars.current.map(toBar));
         volume.current.setData(bars.current.map(toVol));
+        studyLayer.current?.reload(bars.current);
         // Keep the same candles in view after the indexes shift
         if (range) ts.setVisibleLogicalRange({ from: range.from + data.length, to: range.to + data.length });
         setDepth(bars.current.length);
@@ -175,6 +185,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     c.subscribeCrosshairMove((param) => {
       const d = param.time && candles.current ? param.seriesData.get(candles.current) : undefined;
       hovering.current = !!d;
+      setHoverIdx(d && param.logical != null ? param.logical : null);
       if (d && "open" in d) {
         const k = d as CandlestickData<Time>;
         const t = (k.time as number) * 1000;
@@ -185,7 +196,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     chart.current = c;
     return () => {
       c.remove();
-      chart.current = candles.current = volume.current = markers.current = null;
+      chart.current = candles.current = volume.current = markers.current = studyLayer.current = null;
       lines.current = [];
     };
   }, []);
@@ -201,6 +212,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     bars.current = [];
     candles.current?.setData([]);
     volume.current?.setData([]);
+    studyLayer.current?.reload([]);
     fetchCandles(coin, interval, INITIAL_BARS)
       .then((data) => {
         if (!alive || !candles.current || !volume.current) return;
@@ -209,6 +221,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         bars.current = data;
         candles.current.setData(data.map(toBar));
         volume.current.setData(data.map(toVol));
+        studyLayer.current?.setPrecision(d);
+        studyLayer.current?.reload(data);
         // Open on the latest candles at a readable zoom, whatever the last chart's zoom was
         chart.current?.timeScale().setVisibleLogicalRange({ from: Math.max(0, data.length - VIEW_BARS), to: data.length + 6 });
         loaded.current = key;
@@ -236,6 +250,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
       candles.current.update(toBar(bar));
       volume.current.update(toVol(bar));
     } catch {}
+    studyLayer.current?.tick(bars.current);
     if (!hovering.current && Date.now() - lastLegend.current > 250) {
       lastLegend.current = Date.now();
       setLegend(bar);
@@ -256,7 +271,13 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   // current price, so it's hidden until the chart is back at the present.
   useEffect(() => {
     candles.current?.applyOptions({ lastValueVisible: atLatest });
+    studyLayer.current?.setLastValueVisible(atLatest);
   }, [atLatest]);
+
+  // Indicators
+  useEffect(() => {
+    studyLayer.current?.sync(studies, bars.current);
+  }, [studies]);
 
   // Levels: entries, liquidation, take profit, stop loss, resting orders
   useEffect(() => {
@@ -308,6 +329,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
 
   const ref = legend?.c ?? 1;
   const chg = legend ? legend.c / legend.o - 1 : 0;
+  const idx = hoverIdx ?? bars.current.length - 1;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -323,6 +345,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
             {i}
           </button>
         ))}
+        <span className="mx-1 h-4 w-px bg-line" aria-hidden />
+        <IndicatorMenu onAdd={add} full={full} />
         <button
           onClick={toLatest}
           className="ml-auto rounded-md px-2 py-1 text-xs text-muted hover:text-cream"
@@ -334,24 +358,65 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
       <div className="relative min-h-0 flex-1">
         <div ref={el} className="absolute inset-0" />
         {legend && (
-          <div className="pointer-events-none absolute left-2 top-1.5 z-10 flex flex-wrap gap-x-3 font-mono text-[11px] text-muted">
-            <span className="text-cream">
-              {coin} · {interval}
-            </span>
-            <span>
-              O <span className={tone(chg)}>{fmtPxAt(legend.o, ref)}</span>
-            </span>
-            <span>
-              H <span className={tone(chg)}>{fmtPxAt(legend.h, ref)}</span>
-            </span>
-            <span>
-              L <span className={tone(chg)}>{fmtPxAt(legend.l, ref)}</span>
-            </span>
-            <span>
-              C <span className={tone(chg)}>{fmtPxAt(legend.c, ref)}</span>
-            </span>
-            <span className={tone(chg)}>{fmtPct(chg)}</span>
-            <span>Vol {fmtCompact(legend.v * legend.c)}</span>
+          <div className="pointer-events-none absolute left-2 top-1.5 z-10 flex flex-col items-start gap-0.5 font-mono text-[11px] text-muted">
+            <div className="flex flex-wrap gap-x-3">
+              <span className="text-cream">
+                {coin} · {interval}
+              </span>
+              <span>
+                O <span className={tone(chg)}>{fmtPxAt(legend.o, ref)}</span>
+              </span>
+              <span>
+                H <span className={tone(chg)}>{fmtPxAt(legend.h, ref)}</span>
+              </span>
+              <span>
+                L <span className={tone(chg)}>{fmtPxAt(legend.l, ref)}</span>
+              </span>
+              <span>
+                C <span className={tone(chg)}>{fmtPxAt(legend.c, ref)}</span>
+              </span>
+              <span className={tone(chg)}>{fmtPct(chg)}</span>
+              <span>Vol {fmtCompact(legend.v * legend.c)}</span>
+            </div>
+            {studies.map((s) => {
+              const label = studyLabel(s);
+              const lines = STUDIES[s.kind].lines(s);
+              return (
+                <div key={s.id} className="group pointer-events-auto flex items-center gap-1.5 rounded px-1 -mx-1 hover:bg-navy-900/80">
+                  <Swatch color={lines[0].color} dashed={lines[0].style !== LineStyle.Solid} />
+                  <span className={s.hidden ? "opacity-50" : ""}>{label}</span>
+                  {!s.hidden &&
+                    lines.map((l) => {
+                      const v = studyLayer.current?.valueAt(s.id, l.key, idx);
+                      return v == null ? null : (
+                        <span key={l.key} className="text-cream">
+                          {fmtPxAt(v, ref)}
+                        </span>
+                      );
+                    })}
+                  <span className="flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+                    <button
+                      onClick={() => toggle(s.id)}
+                      aria-label={`${s.hidden ? "Show" : "Hide"} ${label}`}
+                      title={s.hidden ? "Show" : "Hide"}
+                      className="rounded p-0.5 hover:text-cream"
+                    >
+                      <EyeIcon off={!!s.hidden} />
+                    </button>
+                    <button
+                      onClick={() => remove(s.id)}
+                      aria-label={`Remove ${label}`}
+                      title="Remove"
+                      className="rounded p-0.5 hover:text-cream"
+                    >
+                      <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+                        <path d="M3 3l6 6M9 3l-6 6" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
         {!atLatest && !loading && (
@@ -374,5 +439,26 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
         )}
       </div>
     </div>
+  );
+}
+
+/** Line sample beside an indicator's name; the line's color identifies it on the chart. */
+function Swatch({ color, dashed }: { color: string; dashed: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-block h-[2px] w-3 rounded-full"
+      style={{ background: dashed ? `repeating-linear-gradient(90deg, ${color} 0 3px, transparent 3px 5px)` : color }}
+    />
+  );
+}
+
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden>
+      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
+      <circle cx="8" cy="8" r="2" />
+      {off && <path d="M2.5 13.5l11-11" strokeLinecap="round" />}
+    </svg>
   );
 }
