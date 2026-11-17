@@ -15,12 +15,12 @@ const steps = [
   {
     n: "02",
     title: "Explain",
-    body: "Tag each trade with a strategy and a one-line rationale. Your reasoning is the signal agents can't get from price alone.",
+    body: "Tag each trade with a strategy and, if you like, a one-line reason. Both are recorded with the trade, so the data shows why you traded, not just what.",
   },
   {
     n: "03",
     title: "Teach",
-    body: "Every trade becomes a labeled example: market context, decision, rationale and outcome. Agents learn from what you did and how it went.",
+    body: "Every closed trade becomes a labeled example: the market at entry and how it turned out. Your agent, an early experiment, learns from those. Your tags and reasons aren't used by it yet.",
   },
 ];
 
@@ -39,7 +39,7 @@ const features = [
   ],
   [
     "Agents that trade on their own",
-    "Every account comes with its own agent, like KIN001. After 30 closed trades it trades its own account every 15 minutes, judged on the same ledger.",
+    "Every account comes with an experimental agent, like KIN001, that learns from the market conditions and outcomes of your trades. After 30 closed trades it trades its own simulated account every 15 minutes, judged on the same ledger.",
   ],
 ];
 
@@ -185,15 +185,16 @@ export default function Home() {
               "Agents learn",
               "markets from data.",
               <span key="judgment">
-                They learn <span className="text-cyan">judgment</span>
+                <span className="text-cyan">Judgment</span> comes
               </span>,
               "from people.",
             ]}
           />
           <InView className="mt-10">
             <p className="reveal t-body max-w-lg" style={i(0)}>
-              Kinfield turns your simulated trading into training signal: decisions paired with context, intent and
-              outcome, so the next generation of agents trades a little more like the best of us.
+              Kinfield records simulated trading as training data: each decision with its market context, the intent
+              you gave it and how it turned out. Today&apos;s agent learns from the context and the outcome. The intent
+              is recorded so future models can learn from it too.
             </p>
           </InView>
         </Stage>

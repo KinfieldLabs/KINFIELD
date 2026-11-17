@@ -2,7 +2,7 @@
 
 **Teach agents to trade.** Simulate strategies. Train intelligence.
 
-Kinfield is a paper-trading simulator on live Hyperliquid market data. Every trade you make, tagged with a strategy and rationale, becomes a labeled training example for AI trading agents.
+Kinfield is a paper-trading simulator on live Hyperliquid market data. Every trade you make is recorded with its market context, outcome, and the strategy and reason you gave it. Your agent, a small experimental model, currently learns from the market context and outcome; the strategy tags and reasons are recorded but not yet used in training.
 
 ## Run
 
