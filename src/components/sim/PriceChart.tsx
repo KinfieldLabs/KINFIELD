@@ -112,6 +112,12 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const [tool, setTool] = useState<Tool>("cursor");
   const { drawings, save: saveDrawings } = useDrawings(coin);
   const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null);
+  const [magnet, setMagnet] = useState(false);
+  useEffect(() => {
+    try {
+      setMagnet(localStorage.getItem("kinfield.magnet") === "1");
+    } catch {}
+  }, []);
   const drawLayer = useRef<DrawingLayer | null>(null);
   const drawCtl = useRef<DrawingController | null>(null);
   const live = useRef({ tool, drawings, saveDrawings, interval });
@@ -320,6 +326,9 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
     drawLayer.current?.update({ editable: tool === "cursor", hovered: null });
   }, [tool]);
   useEffect(() => {
+    drawLayer.current?.update({ magnet });
+  }, [magnet]);
+  useEffect(() => {
     drawCtl.current?.cancel();
     setTool("cursor");
   }, [coin]);
@@ -458,6 +467,13 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
           onTool={(t) => {
             drawCtl.current?.cancel();
             setTool(t);
+          }}
+          magnet={magnet}
+          onMagnet={(on) => {
+            setMagnet(on);
+            try {
+              localStorage.setItem("kinfield.magnet", on ? "1" : "0");
+            } catch {}
           }}
           count={drawings.length}
           onClear={() => saveDrawings([])}

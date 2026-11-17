@@ -79,6 +79,8 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
   hovered: string | null = null;
   /** False while a drawing tool is in use, so existing drawings don't react to the pointer. */
   editable = true;
+  /** Snap new points to the nearest open, high, low or close of the candle under them. */
+  magnet = false;
 
   private chart: IChartApi | null = null;
   private series: ISeriesApi<SeriesType> | null = null;
@@ -130,7 +132,7 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return h ? { externalId: h.id, zOrder: "top", cursorStyle: h.handle != null ? "move" : "pointer" } : null;
   }
 
-  update(patch: Partial<Pick<DrawingLayer, "drawings" | "draft" | "selected" | "hovered" | "editable">>) {
+  update(patch: Partial<Pick<DrawingLayer, "drawings" | "draft" | "selected" | "hovered" | "editable" | "magnet">>) {
     Object.assign(this, patch);
     this.refreshAxis();
     this.requestUpdate?.();
@@ -153,16 +155,30 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
     return this.series?.priceToCoordinate(p) ?? null;
   }
 
-  /** The chart position under a screen point, with its time snapped to the nearest candle. */
-  anchorAt(x: number, y: number): Anchor | null {
+  /**
+   * The chart position under a screen point, with its time snapped to the nearest
+   * candle and, with the magnet on, its price to that candle's nearest open, high, low
+   * or close.
+   */
+  anchorAt(x: number, y: number, snap = this.magnet): Anchor | null {
     const bars = this.bars();
-    if (!this.chart || !this.series || !bars.length) return null;
+    const series = this.series;
+    if (!this.chart || !series || !bars.length) return null;
     const ts = this.chart.timeScale();
     const x0 = ts.logicalToCoordinate(0 as Logical);
     const x1 = ts.logicalToCoordinate(1 as Logical);
-    const p = this.series.coordinateToPrice(y);
+    let p: number | null = series.coordinateToPrice(y);
     if (x0 == null || x1 == null || x1 === x0 || p == null) return null;
-    return { t: logicalToTime(bars, Math.round((x - x0) / (x1 - x0)), this.stepMs()), p };
+    const i = Math.round((x - x0) / (x1 - x0));
+    const bar = snap ? bars[i] : undefined;
+    if (bar) {
+      let best = Infinity;
+      for (const v of [bar.o, bar.h, bar.l, bar.c]) {
+        const d = Math.abs((series.priceToCoordinate(v) ?? Infinity) - y);
+        if (d < best) [best, p] = [d, v];
+      }
+    }
+    return { t: logicalToTime(bars, i, this.stepMs()), p };
   }
 
   /** A drawing's points on screen, or null while any of them can't be placed. */

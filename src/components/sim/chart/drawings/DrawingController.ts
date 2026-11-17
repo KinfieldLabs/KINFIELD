@@ -121,7 +121,7 @@ export class DrawingController {
     this.pressed = true;
     this.select(hit.id);
     const original = this.layer.drawings.find((d) => d.id === hit.id);
-    const from = this.layer.anchorAt(at.x, at.y);
+    const from = this.layer.anchorAt(at.x, at.y, false);
     if (original && from) this.drag = { original, handle: hit.handle, from, moved: false };
   }
 
@@ -142,9 +142,10 @@ export class DrawingController {
 
   private dragTo(at: At) {
     const drag = this.drag!;
-    const a = this.layer.anchorAt(at.x, at.y);
-    if (!a) return;
     const { original: o, handle, from } = drag;
+    // A handle snaps like a new point; moving the whole drawing keeps its shape
+    const a = this.layer.anchorAt(at.x, at.y, handle == null ? false : undefined);
+    if (!a) return;
     // A handle moves its point; the line itself moves every point by the same time and price
     const points =
       handle != null ? moveHandle(o, handle, a) : o.points.map((p) => ({ t: p.t + (a.t - from.t), p: p.p + (a.p - from.p) }));

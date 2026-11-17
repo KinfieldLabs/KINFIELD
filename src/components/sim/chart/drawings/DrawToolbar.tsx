@@ -51,7 +51,21 @@ const ICONS: Record<ToolKind, ReactNode> = {
 };
 
 /** The column of drawing tools down the left of the chart. */
-export function DrawToolbar({ tool, onTool, count, onClear }: { tool: Tool; onTool: (t: Tool) => void; count: number; onClear: () => void }) {
+export function DrawToolbar({
+  tool,
+  onTool,
+  magnet,
+  onMagnet,
+  count,
+  onClear,
+}: {
+  tool: Tool;
+  onTool: (t: Tool) => void;
+  magnet: boolean;
+  onMagnet: (on: boolean) => void;
+  count: number;
+  onClear: () => void;
+}) {
   // Removing everything takes a second click within three seconds
   const [confirming, setConfirming] = useState(false);
   useEffect(() => {
@@ -61,7 +75,7 @@ export function DrawToolbar({ tool, onTool, count, onClear }: { tool: Tool; onTo
   }, [confirming]);
 
   return (
-    <div role="toolbar" aria-label="Drawing tools" aria-orientation="vertical" className="flex w-9 shrink-0 flex-col items-center gap-0.5 border-r border-line py-1.5">
+    <div role="toolbar" aria-label="Drawing tools" aria-orientation="vertical" className="flex w-9 [scrollbar-width:none] shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-line py-1.5">
       <ToolButton label="Cursor" active={tool === "cursor"} onClick={() => onTool("cursor")}>
         <path d="M4 2.5l8 5.8-3.4.7 2 4-1.5.8-2-4-3.1 2.6z" strokeLinejoin="round" />
       </ToolButton>
@@ -70,7 +84,11 @@ export function DrawToolbar({ tool, onTool, count, onClear }: { tool: Tool; onTo
           {ICONS[k]}
         </ToolButton>
       ))}
-      <span className="my-1 h-px w-5 bg-line" aria-hidden />
+      <span className="my-1 h-px w-5 shrink-0 bg-line" aria-hidden />
+      <ToolButton label="Magnet: snap points to candle prices" active={magnet} onClick={() => onMagnet(!magnet)}>
+        <path d="M4.5 2.5v5.5a3.5 3.5 0 0 0 7 0V2.5" strokeLinecap="round" />
+        <path d="M4.5 5h2M9.5 5h2" strokeLinecap="round" />
+      </ToolButton>
       <ToolButton
         label={confirming ? "Click again to remove all drawings" : "Remove all drawings"}
         danger={confirming}
@@ -109,7 +127,7 @@ function ToolButton({
       aria-label={label}
       aria-pressed={active}
       title={label}
-      className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:opacity-35 ${
+      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-35 ${
         danger ? "bg-short/15 text-short" : active ? "bg-navy-700 text-cream" : "text-muted hover:bg-navy-800 hover:text-cream disabled:hover:bg-transparent"
       }`}
     >
