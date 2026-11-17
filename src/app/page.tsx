@@ -129,7 +129,7 @@ export default function Home() {
                 style={i(0)}
               >
                 <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-cyan" />
-                <span className="t-label">Market data from Hyperliquid</span>
+                <span className="t-label">Powered by Hyperliquid</span>
                 <HyperliquidMark className="h-[17px] w-auto text-[#97fce4] transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-110" />
               </a>
             </InView>
