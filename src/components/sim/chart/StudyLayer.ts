@@ -83,8 +83,8 @@ export class StudyLayer {
   }
 
   /**
-   * Gives each indicator pane the same height, about 110px but never more than half
-   * the chart between them, and the candles the rest. Runs when panes come or go.
+   * Gives each indicator pane the same height, about 110px but never more than 40% of
+   * the chart between them, so the candles keep most of it. Runs when panes come or go.
    */
   private layoutPanes(attempt = 0) {
     const panes = this.chart.panes();
@@ -96,7 +96,7 @@ export class StudyLayer {
       if (attempt < 10) requestAnimationFrame(() => this.layoutPanes(attempt + 1));
       return;
     }
-    const each = Math.min(PANE_HEIGHT, (available * 0.5) / k);
+    const each = Math.min(PANE_HEIGHT, (available * 0.4) / k);
     panes.forEach((p, i) => p.setStretchFactor(i === 0 ? available - k * each : each));
   }
 
