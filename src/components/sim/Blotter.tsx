@@ -75,7 +75,7 @@ export function Blotter(props: Props) {
 
   return (
     <div className="tpanel flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex items-center overflow-x-auto border-b border-line px-1 scroll-thin" role="tablist">
+      <div className="scroll-fade flex items-center overflow-x-auto border-b border-line px-1 scroll-thin" role="tablist">
         {tabs.map(([k, label]) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className="tab">
             {label}

@@ -350,6 +350,15 @@ html.lenis body {
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 170, 255, 0.25) transparent;
 }
+/* Rows that scroll sideways on phones fade at the right edge, a hint there's more; the
+   padding lets the last item scroll clear of the fade */
+@media (max-width: 1023px) {
+  .scroll-fade {
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    padding-right: 32px;
+  }
+}
+
 .tab {
   margin-bottom: -1px;
   border-bottom: 2px solid transparent;

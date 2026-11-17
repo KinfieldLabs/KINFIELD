@@ -191,7 +191,7 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
           <button
             key={s}
             onClick={() => setSide(s)}
-            className={`rounded-md py-1.5 text-sm font-semibold capitalize transition ${
+            className={`rounded-md py-2.5 text-sm font-semibold capitalize transition lg:py-1.5 ${
               side === s ? (s === "long" ? "bg-long text-navy-950" : "bg-short text-navy-950") : "text-muted hover:text-cream"
             }`}
           >
@@ -277,7 +277,7 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
               key={x}
               type="button"
               onClick={() => setLeverage(x)}
-              className={`flex-1 rounded-md border py-0.5 font-mono text-[11px] ${
+              className={`flex-1 rounded-md border py-2 font-mono text-xs lg:py-0.5 lg:text-[11px] ${
                 lev === x ? "border-cyan/60 text-cream" : "border-line text-muted hover:text-cream"
               }`}
             >
@@ -307,7 +307,7 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
             <button
               key={s}
               onClick={() => setStrategy(s)}
-              className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
+              className={`rounded-full border px-3 py-1.5 text-xs transition lg:px-2 lg:py-0.5 lg:text-[11px] ${
                 strategy === s ? "border-cyan bg-cyan/15 text-cream" : "border-line text-muted hover:text-cream"
               }`}
             >
