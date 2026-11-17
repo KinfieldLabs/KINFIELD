@@ -78,11 +78,11 @@ export function SiteNav() {
     return () => window.removeEventListener("scroll", on);
   }, []);
 
-  // Menu: close on Escape or when the screen grows past phone size
+  // Menu: close on Escape or when the screen grows wide enough for the full bar
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    const wide = window.matchMedia("(min-width: 768px)");
+    const wide = window.matchMedia("(min-width: 1280px)");
     const onWide = () => wide.matches && setOpen(false);
     window.addEventListener("keydown", onKey);
     wide.addEventListener("change", onWide);
@@ -105,12 +105,12 @@ export function SiteNav() {
         hidden && !open ? "-translate-y-full" : "translate-y-0"
       }`}
     >
-      {/* Phone menu: a frosted sheet under the bar */}
+      {/* Menu for phones and tablets, until the full bar fits: a frosted sheet under the bar */}
       <div
         id="mobile-menu"
         aria-hidden={!open}
         inert={!open}
-        className={`absolute inset-x-0 top-0 h-[100svh] bg-navy-950/70 backdrop-blur-xl transition-opacity duration-500 ease-[var(--ease-out)] md:hidden ${
+        className={`absolute inset-x-0 top-0 h-[100svh] bg-navy-950/70 backdrop-blur-xl transition-opacity duration-500 ease-[var(--ease-out)] xl:hidden ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
@@ -162,12 +162,12 @@ export function SiteNav() {
               key={href}
               href={href}
               aria-current={path === href ? "page" : undefined}
-              className={`link-ghost t-label hidden md:block ${path === href ? "!text-cream" : ""}`}
+              className={`link-ghost t-label hidden xl:block ${path === href ? "!text-cream" : ""}`}
             >
               {label}
             </Link>
           ))}
-          <div className="hidden md:block">
+          <div className="hidden xl:block">
             <Socials />
           </div>
           <ConstellationButton href="/simulate" size="sm" className="whitespace-nowrap">
@@ -179,7 +179,7 @@ export function SiteNav() {
             aria-expanded={open}
             aria-controls="mobile-menu"
             aria-label={open ? "Close menu" : "Open menu"}
-            className="-mr-2 flex h-10 w-10 items-center justify-center rounded-full text-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan md:hidden"
+            className="-mr-2 flex h-10 w-10 items-center justify-center rounded-full text-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan xl:hidden"
           >
             <span className="relative block h-3 w-5" aria-hidden>
               <span
