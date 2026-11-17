@@ -30,6 +30,7 @@ import { useStudies } from "./chart/useStudies";
 import { DrawingController } from "./chart/drawings/DrawingController";
 import { DrawingLayer } from "./chart/drawings/DrawingLayer";
 import { DrawToolbar } from "./chart/drawings/DrawToolbar";
+import { NoteEditor } from "./chart/drawings/NoteEditor";
 import { SHORTCUTS, TOOL_NAMES, useDrawings, type Drawing, type Tool, type ToolKind } from "./chart/drawings/model";
 
 interface Props {
@@ -112,6 +113,8 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
   const [tool, setTool] = useState<Tool>("cursor");
   const { drawings, save: saveDrawings } = useDrawings(coin);
   const [selectedDrawing, setSelectedDrawing] = useState<string | null>(null);
+  /** The text note being typed into. */
+  const [editingNote, setEditingNote] = useState<string | null>(null);
   const [magnet, setMagnet] = useState(false);
   const [drawingsHidden, setDrawingsHidden] = useState(false);
   useEffect(() => {
@@ -184,6 +187,7 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
       drawings: () => live.current.drawings,
       save: (next: Drawing[]) => live.current.saveDrawings(next),
       select: setSelectedDrawing,
+      edit: setEditingNote,
     });
 
     // Scrolling or zooming out near the oldest candle loads the history before it
@@ -551,9 +555,36 @@ export function PriceChart({ coin, interval, onInterval, positions, orders, hist
                   <StudyRow {...rowProps(s)} settingsUp />
                 </div>
               ))}
+          {editingNote && (
+            <NoteEditor
+              key={editingNote}
+              drawing={drawings.find((d) => d.id === editingNote)}
+              at={(d) => {
+                const a = d.points[0];
+                const x = drawLayer.current?.toX(a.t);
+                const y = drawLayer.current?.toY(a.p);
+                return x == null || y == null ? null : { x, y };
+              }}
+              onDone={(text) => {
+                const id = editingNote;
+                setEditingNote(null);
+                if (text == null) return;
+                // An empty note is no note
+                if (!text.trim()) {
+                  drawCtl.current?.select(null);
+                  saveDrawings(drawings.filter((d) => d.id !== id));
+                } else saveDrawings(drawings.map((d) => (d.id === id ? { ...d, text: text.trim() } : d)));
+              }}
+            />
+          )}
           {selectedKind && (
             <div className="absolute bottom-9 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-navy-900/95 py-1 pl-2.5 pr-1 text-xs shadow-lg shadow-black/40">
               <span className="text-cream">{TOOL_NAMES[selectedKind]}</span>
+              {selectedKind === "text" && (
+                <button onClick={() => selectedDrawing && setEditingNote(selectedDrawing)} className="rounded-md px-1.5 py-0.5 text-muted hover:bg-navy-800 hover:text-cream">
+                  Edit
+                </button>
+              )}
               <button
                 onClick={() => {
                   const id = selectedDrawing;

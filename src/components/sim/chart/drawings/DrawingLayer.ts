@@ -27,6 +27,22 @@ const POCKET = "rgba(201, 133, 0, 0.14)";
 
 /** The page's mono font, for labels drawn on the canvas, which can't read CSS variables. */
 let mono = "";
+let sans = "";
+const sansFont = () =>
+  (sans ||= (typeof document !== "undefined" && getComputedStyle(document.body).getPropertyValue("--font-inter").trim()) || "sans-serif");
+
+/** Measures text off screen, for hit testing notes outside a draw. */
+let measurer: CanvasRenderingContext2D | null = null;
+const TEXT_FONT = () => `13px ${sansFont()}`;
+const PAD = 5;
+function noteSize(text: string): { w: number; h: number } {
+  measurer ||= typeof document !== "undefined" ? document.createElement("canvas").getContext("2d") : null;
+  if (!measurer) return { w: text.length * 7 + PAD * 2, h: 22 };
+  measurer.font = TEXT_FONT();
+  return { w: measurer.measureText(text).width + PAD * 2, h: 22 };
+}
+/** What a note shows: its words, or a prompt while it is empty. */
+const noteText = (d: Drawing) => d.text?.trim() || "Text";
 const monoFont = () =>
   (mono ||= (typeof document !== "undefined" && getComputedStyle(document.body).getPropertyValue("--font-geist-mono").trim()) || "monospace");
 /** How close, in pixels, a press must be to a line to pick it. */
@@ -230,6 +246,10 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
           at[1] <= Math.max(...ys) + REACH
         );
       }
+      case "text": {
+        const { w, h } = noteSize(noteText(d));
+        return at[0] >= pts[0][0] && at[0] <= pts[0][0] + w && at[1] >= pts[0][1] - h && at[1] <= pts[0][1];
+      }
       case "rect":
       case "measure":
         return (
@@ -338,6 +358,24 @@ export class DrawingLayer implements ISeriesPrimitive<Time> {
       case "fib":
         this.paintFib(ctx, d, a, b, hot);
         break;
+      case "text": {
+        // The note sits above and right of its point, on a dark backing so it reads over candles
+        const text = noteText(d);
+        const { w, h } = noteSize(text);
+        ctx.fillStyle = "rgba(1, 21, 77, 0.85)";
+        ctx.strokeStyle = hot ? INK : "rgba(253, 248, 234, 0.35)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(a[0], a[1] - h, w, h, 4);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = TEXT_FONT();
+        ctx.fillStyle = d.text?.trim() ? INK : "rgba(253, 248, 234, 0.5)";
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "left";
+        ctx.fillText(text, a[0] + PAD, a[1] - h / 2 + 0.5);
+        break;
+      }
       case "measure":
         this.paintMeasure(ctx, d, a, b, size);
         break;

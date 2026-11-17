@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short";
+export type ToolKind = "trend" | "hline" | "vline" | "fib" | "rect" | "measure" | "long" | "short" | "text";
 export type Tool = "cursor" | ToolKind;
 
 /** A point on the chart: a moment and a price. Anchoring to time keeps drawings in place across intervals. */
@@ -15,6 +15,8 @@ export interface Drawing {
   id: string;
   kind: ToolKind;
   points: Anchor[];
+  /** A text note's words. */
+  text?: string;
 }
 
 /**
@@ -22,7 +24,7 @@ export interface Drawing {
  * point's price, a vertical line only its time. A position is its entry, then its target
  * and stop, which share the box's right edge.
  */
-export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3 };
+export const POINTS: Record<ToolKind, number> = { trend: 2, hline: 1, vline: 1, fib: 2, rect: 2, measure: 2, long: 3, short: 3, text: 1 };
 
 export const TOOL_NAMES: Record<ToolKind, string> = {
   trend: "Trend line",
@@ -33,6 +35,7 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   measure: "Measure",
   long: "Long position",
   short: "Short position",
+  text: "Text note",
 };
 
 /** Alt plus this letter picks the tool, as on TradingView where they overlap. */
@@ -45,6 +48,7 @@ export const SHORTCUTS: Record<ToolKind, string> = {
   measure: "M",
   long: "L",
   short: "S",
+  text: "N",
 };
 
 /**
@@ -84,6 +88,9 @@ export function moveHandle(d: Drawing, i: number, a: Anchor): Anchor[] {
     : [entry, { t: a.t, p: target.p }, { t: a.t, p: beyond(a.p, !up) }];
 }
 
+/** The longest a text note can be. */
+export const TEXT_MAX = 200;
+
 const MAX = 200;
 const key = (coin: string) => `kinfield.drawings.${coin}`;
 
@@ -97,7 +104,8 @@ function valid(x: unknown): x is Drawing {
     Object.hasOwn(POINTS, d.kind) &&
     Array.isArray(d.points) &&
     d.points.length === POINTS[d.kind] &&
-    d.points.every((a) => a && Number.isFinite(a.t) && Number.isFinite(a.p))
+    d.points.every((a) => a && Number.isFinite(a.t) && Number.isFinite(a.p)) &&
+    (d.text === undefined || (typeof d.text === "string" && d.text.length <= TEXT_MAX))
   );
 }
 

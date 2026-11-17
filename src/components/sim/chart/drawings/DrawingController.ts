@@ -9,6 +9,8 @@ interface Hooks {
   drawings(): Drawing[];
   save(next: Drawing[]): void;
   select(id: string | null): void;
+  /** Opens a text note for typing. */
+  edit(id: string): void;
 }
 
 type At = { x: number; y: number };
@@ -43,6 +45,7 @@ export class DrawingController {
     private readonly hooks: Hooks,
   ) {
     el.addEventListener("pointerdown", this.onDown, true);
+    el.addEventListener("dblclick", this.onDouble, true);
     // The chart listens for these, not pointer events
     el.addEventListener("mousedown", this.block, true);
     el.addEventListener("touchstart", this.block, true);
@@ -53,6 +56,7 @@ export class DrawingController {
 
   destroy() {
     this.el.removeEventListener("pointerdown", this.onDown, true);
+    this.el.removeEventListener("dblclick", this.onDouble, true);
     this.el.removeEventListener("mousedown", this.block, true);
     this.el.removeEventListener("touchstart", this.block, true);
     window.removeEventListener("pointermove", this.onMove);
@@ -83,7 +87,10 @@ export class DrawingController {
   }
 
   private block = (e: Event) => {
-    if (this.pressed) e.stopPropagation();
+    if (!this.pressed) return;
+    e.stopPropagation();
+    // A press the drawing took shouldn't also move focus, which would close a note being typed
+    if (e.type === "mousedown") e.preventDefault();
   };
 
   private onDown = (e: PointerEvent) => {
@@ -124,6 +131,17 @@ export class DrawingController {
     const from = this.layer.anchorAt(at.x, at.y, false);
     if (original && from) this.drag = { original, handle: hit.handle, from, moved: false };
   }
+
+  /** A double click on a text note opens it for editing. */
+  private onDouble = (e: MouseEvent) => {
+    const r = this.el.getBoundingClientRect();
+    const hit = this.layer.hit(e.clientX - r.left, e.clientY - r.top);
+    const d = hit && this.layer.drawings.find((x) => x.id === hit.id);
+    if (d?.kind !== "text") return;
+    e.stopPropagation();
+    this.select(d.id);
+    this.hooks.edit(d.id);
+  };
 
   private onMove = (e: PointerEvent) => {
     const at = this.at(e);
@@ -202,6 +220,7 @@ export class DrawingController {
     if (!b || a.t !== b.t || a.p !== b.p) {
       this.hooks.save([...this.hooks.drawings(), d]);
       this.select(d.id);
+      if (d.kind === "text") this.hooks.edit(d.id);
     }
     this.hooks.done();
   }
