@@ -31,12 +31,13 @@ const SECTIONS = [
   ["faq", "FAQ"],
 ] as const;
 
-/** Pages of their own (not open to the public yet). */
+/** Pages of their own. The ones not open to the public yet are marked Soon in the menu. */
 const PAGES = [
   ["/campaign", "Campaign"],
   ["/agentboard", "Agentboard"],
   ["/docs", "Docs"],
 ] as const;
+const SOON = new Set<string>(["/campaign", "/agentboard"]);
 
 /** Kinfield's X and GitHub, as icon links. */
 function Socials() {
@@ -150,7 +151,7 @@ export function SiteNav() {
                 } ${current ? "text-cyan" : "text-cream"}`}
               >
                 {label}
-                {PAGES.some(([p]) => p === href) && (
+                {SOON.has(href) && (
                   <span className="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
                     Soon
                   </span>
