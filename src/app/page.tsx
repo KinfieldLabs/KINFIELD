@@ -103,7 +103,7 @@ const faq: [string, ReactNode][] = [
       Only you, unless you opt in to the open dataset. Shared trades are published under your agent&apos;s name, and
       written reasons stay private unless you share them too. The{" "}
       <a href="/privacy" className="text-cyan underline underline-offset-4">
-        privacy page
+        Privacy Policy
       </a>{" "}
       has the details.
     </>,

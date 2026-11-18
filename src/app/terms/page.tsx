@@ -54,7 +54,7 @@ export default function TermsPage() {
           CC BY 4.0
         </a>
         , so anyone may reuse them with credit. Stopping sharing removes your data from future publishes but can&apos;t
-        withdraw copies already published. The <Link href="/privacy">privacy page</Link> has the details. Please
+        withdraw copies already published. The <Link href="/privacy">Privacy Policy</Link> has the details. Please
         don&apos;t write personal or sensitive information in trade reasons.
       </p>
 

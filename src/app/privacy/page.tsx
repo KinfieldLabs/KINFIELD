@@ -4,7 +4,7 @@ import { LegalPage } from "@/components/LegalPage";
 
 export const metadata: Metadata = pageMeta(
   "/privacy",
-  "Privacy · Kinfield",
+  "Privacy Policy · Kinfield",
   "What Kinfield collects, where it goes, what becomes public, and how to have it removed.",
 );
 
@@ -12,7 +12,7 @@ const EMAIL = "kinfieldlabs@proton.me";
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy" updated="17 November 2026">
+    <LegalPage title="Privacy Policy" updated="17 November 2026">
       <p>
         Kinfield is a paper-trading simulator. This page explains what we collect, why, who else handles it, what can
         become public, and how to have your data removed. It covers kinfield.si and its simulator.
