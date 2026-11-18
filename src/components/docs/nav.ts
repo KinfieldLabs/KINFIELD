@@ -17,6 +17,7 @@ export const DOCS: DocLink[] = [
   { slug: "orders", title: "Orders and positions", group: "The simulator", summary: "Market and limit orders, leverage, margin, fees, take profit, stop loss and liquidation." },
   { slug: "chart", title: "Chart tools", group: "The simulator", summary: "Indicators, drawing tools and keyboard shortcuts on the price chart." },
   { slug: "strategies", title: "Strategies and reasons", group: "Teaching your agent", summary: "Tagging each trade with a strategy and a written reason, and how reasons stay private." },
+  { slug: "market-context", title: "Market context", group: "Teaching your agent", summary: "The six market features recorded at the moment of every decision." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
