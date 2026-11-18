@@ -19,6 +19,7 @@ export const DOCS: DocLink[] = [
   { slug: "strategies", title: "Strategies and reasons", group: "Teaching your agent", summary: "Tagging each trade with a strategy and a written reason, and how reasons stay private." },
   { slug: "market-context", title: "Market context", group: "Teaching your agent", summary: "The six market features recorded at the moment of every decision." },
   { slug: "agent", title: "Your agent", group: "Teaching your agent", summary: "How your agent learns from your closed trades, and how to read what it has learned." },
+  { slug: "autonomous", title: "The agent trading on its own", group: "Teaching your agent", summary: "When and how your agent trades its own simulated account." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
