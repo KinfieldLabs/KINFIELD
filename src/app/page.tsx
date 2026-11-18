@@ -42,6 +42,8 @@ const features: [title: string, status: string, body: string, href?: string, lab
     "Verified ledger",
     "Sign in",
     "Sign in with GitHub and every fill is priced by Hyperliquid the moment it arrives, then written to a hash-chained record where any later edit shows.",
+    "/simulate",
+    "Sign in from the simulator",
   ],
   [
     "Open dataset",
