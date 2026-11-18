@@ -13,6 +13,7 @@ export const DOCS: DocLink[] = [
   { slug: "", title: "Introduction", group: "Getting started", summary: "What Kinfield is, how its pieces fit together, and what it is not." },
   { slug: "quickstart", title: "Quickstart", group: "Getting started", summary: "Place your first simulated trade and see what it teaches your agent." },
   { slug: "accounts", title: "Guest mode and accounts", group: "Getting started", summary: "What works as a guest, what signing in with GitHub adds, and how to reset or delete an account." },
+  { slug: "simulator", title: "The trading terminal", group: "The simulator", summary: "Markets, live data and every panel of the simulator." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
