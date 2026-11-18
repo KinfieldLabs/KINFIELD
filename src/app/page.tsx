@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
 import { Constellation, type ShapeName } from "@/components/Constellation";
 import { Logo, Mark } from "@/components/Logo";
 import { HyperliquidMark } from "@/components/HyperliquidMark";
@@ -25,12 +26,17 @@ const steps = [
   },
 ];
 
-/** Each feature with what it takes to use it: try now, sign in, opt in, or keep trading. */
-const features = [
+/**
+ * Each feature with what it takes to use it (try now, sign in, opt in, or keep trading),
+ * and where that label leads, if anywhere yet.
+ */
+const features: [title: string, status: string, body: string, href?: string, label?: string][] = [
   [
     "Pro trading terminal",
     "Try now",
     "Every Hyperliquid perpetual with live candles, order book and trades. Market and limit orders, take profit, stop loss and up to 20x leverage.",
+    "/simulate",
+    "Try the trading terminal now",
   ],
   [
     "Verified ledger",
@@ -279,19 +285,15 @@ export default function Home() {
           </InView>
           <Lines className="t-h1 mt-6" lines={["Every trade", "becomes a lesson."]} />
           <div className="mt-12 grid gap-x-10 sm:grid-cols-2">
-            {features.map(([t, status, b], k) => (
+            {features.map(([t, status, b, href, label], k) => (
               <InView key={t} className="pb-8" style={{ "--d": `${(k % 2) * 120}ms` } as CSSProperties}>
                 <div className="rule" />
                 <div className="pt-6">
                   <div className="reveal flex items-center justify-between gap-3" style={i(0)}>
                     <Mark className="h-4 w-4 text-cyan" />
-                    <span
-                      className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                        k === 0 ? "border-cyan/50 text-cyan" : "border-line text-muted"
-                      }`}
-                    >
+                    <FeatureStatus href={href} label={label} accent={k === 0}>
                       {status}
-                    </span>
+                    </FeatureStatus>
                   </div>
                   <h3 className="reveal mt-4 text-xl tracking-[-0.02em]" style={i(1)}>
                     {t}
@@ -441,5 +443,26 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+/**
+ * A feature's status pill. With somewhere to go it becomes a link (new tab when it leaves
+ * the site), with a hit area larger than the pill so it's easy to tap.
+ */
+function FeatureStatus({ href, label, accent, children }: { href?: string; label?: string; accent: boolean; children: string }) {
+  const tone = accent ? "border-cyan/50 text-cyan" : "border-line text-muted";
+  const pill = `rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${tone}`;
+  if (!href) return <span className={pill}>{children}</span>;
+  const link = `${pill} relative transition-colors duration-300 after:absolute after:-inset-x-2 after:-inset-y-3 hover:border-cyan hover:text-cream focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan`;
+  const external = href.startsWith("http");
+  return external ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={label} className={link}>
+      {children}
+    </a>
+  ) : (
+    <Link href={href} aria-label={label} className={link}>
+      {children}
+    </Link>
   );
 }
