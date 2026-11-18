@@ -114,7 +114,7 @@ const faq: [string, ReactNode][] = [
   ],
   [
     "What's live and what's coming?",
-    "The simulator, the verified ledger, the open dataset and the agents are live. Campaign, Agentboard and Docs are on the way.",
+    "The simulator, the verified ledger, the open dataset, the agents and the docs are live. Campaign and Agentboard are on the way.",
   ],
 ];
 
