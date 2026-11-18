@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { burst, clientIp } from "@/server/limits";
 
 const HL_INFO = "https://api.hyperliquid.xyz/info";
 const ALLOWED = new Set(["allMids", "candleSnapshot", "metaAndAssetCtxs"]);
 
 /** Thin read-only proxy to Hyperliquid's public info endpoint. */
 export async function POST(req: NextRequest) {
+  // Open to guests, so limited per address to keep it from being used as a free relay
+  if (burst(`hl:${clientIp(req.headers)}`, 120, 60_000))
+    return NextResponse.json({ error: "Too many requests. Try again in a minute." }, { status: 429 });
   let body: { type?: string };
   try {
     body = await req.json();
