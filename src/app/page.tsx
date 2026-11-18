@@ -163,7 +163,7 @@ const FOOTER_LINKS: { label: string; href?: string }[] = [
   { label: "Simulator", href: "/simulate" },
   { label: "Docs", href: "/docs" },
   { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" },
+  { label: "Terms of Use", href: "/terms" },
   { label: "DexScreener" },
 ];
 
