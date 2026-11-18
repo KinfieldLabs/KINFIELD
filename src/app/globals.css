@@ -442,3 +442,115 @@ html.lenis body {
     animation: none;
   }
 }
+
+/* ---------- Docs ---------- */
+
+.docs {
+  color: var(--mist);
+  font-weight: 300;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+.docs > * + * {
+  margin-top: 1.1rem;
+}
+.docs h2 {
+  margin-top: 3.25rem;
+  scroll-margin-top: 7rem;
+  color: var(--cream);
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+.docs h3 {
+  margin-top: 2.25rem;
+  scroll-margin-top: 7rem;
+  color: var(--cream);
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+.docs h2 + *,
+.docs h3 + * {
+  margin-top: 0.75rem;
+}
+.docs strong {
+  color: var(--cream);
+  font-weight: 500;
+}
+.docs ul,
+.docs ol {
+  padding-left: 1.25rem;
+}
+.docs ul {
+  list-style: disc;
+}
+.docs ol {
+  list-style: decimal;
+}
+.docs li + li {
+  margin-top: 0.45rem;
+}
+.docs li::marker {
+  color: var(--muted);
+}
+.docs a {
+  color: var(--cyan);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--cyan) 45%, transparent);
+  text-underline-offset: 3px;
+}
+.docs a:hover {
+  text-decoration-color: var(--cyan);
+}
+.docs :not(pre) > code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.86em;
+  color: var(--cream);
+  background: color-mix(in srgb, var(--navy-800) 70%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.1em 0.38em;
+  overflow-wrap: anywhere;
+}
+.docs pre {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.84rem;
+  line-height: 1.7;
+  color: var(--cream);
+  background: color-mix(in srgb, var(--navy-950) 70%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+  overflow-x: auto;
+  font-weight: 400;
+}
+.docs .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.docs table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+.docs th {
+  text-align: left;
+  color: var(--cream);
+  font-weight: 500;
+  background: color-mix(in srgb, var(--navy-850) 70%, transparent);
+}
+.docs th,
+.docs td {
+  padding: 0.7rem 1rem;
+  vertical-align: top;
+}
+.docs tr + tr td,
+.docs thead + tbody tr:first-child td {
+  border-top: 1px solid var(--line);
+}
+.docs td code {
+  white-space: nowrap;
+}
