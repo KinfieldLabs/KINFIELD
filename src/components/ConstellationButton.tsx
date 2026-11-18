@@ -51,7 +51,7 @@ function onPill(w: number, h: number, s: number, d: number): [number, number] {
 }
 
 /**
- * The call to action: a navy capsule with a thin cyan border and a few particles from the
+ * The call to action: a navy capsule with a glowing cyan border and particles from the
  * hero constellation drifting round its edge. Hovering gathers them onto the border and
  * sends them round it; a click sends a brief pulse through them before the page changes.
  * Under reduced motion the particles hold still in the same arrangement.
@@ -210,7 +210,7 @@ export function ConstellationButton({
       href={href}
       onClick={click}
       style={style}
-      className={`group relative inline-flex items-center justify-center rounded-[var(--radius-pill)] border border-cyan/35 bg-navy-800/80 ${SIZES[size]} font-semibold text-cream shadow-[0_0_0_0_rgba(63,200,240,0)] transition-[border-color,box-shadow,translate,background-color] duration-300 ease-[var(--ease-out)] hover:-translate-y-0.5 hover:border-cyan/80 hover:bg-navy-800 hover:shadow-[0_0_22px_-4px_rgba(63,200,240,0.55)] active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-cyan motion-reduce:hover:translate-y-0 ${className}`}
+      className={`group relative inline-flex items-center justify-center rounded-[var(--radius-pill)] border border-cyan/75 bg-navy-800/85 ${SIZES[size]} font-semibold text-cream shadow-[0_0_20px_-2px_rgba(63,200,240,0.6),inset_0_0_12px_-2px_rgba(63,200,240,0.4)] transition-[border-color,box-shadow,translate,background-color] duration-300 ease-[var(--ease-out)] hover:-translate-y-0.5 hover:border-cyan hover:bg-navy-800 hover:shadow-[0_0_28px_0px_rgba(63,200,240,0.65),inset_0_0_16px_-2px_rgba(63,200,240,0.5)] active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-cyan motion-reduce:hover:translate-y-0 ${className}`}
     >
       <canvas
         ref={canvas}
