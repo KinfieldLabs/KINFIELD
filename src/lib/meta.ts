@@ -15,7 +15,7 @@ export function pageMeta(path: string, title: string, description: string, opts:
     description,
     alternates: { canonical: path },
     openGraph: { type: "website", siteName: "Kinfield", url: path, title, description, images: [IMAGE] },
-    twitter: { card: "summary_large_image", title, description, images: [IMAGE] },
+    twitter: { card: "summary_large_image", site: "@kinfieldlabs", creator: "@kinfieldlabs", title, description, images: [IMAGE] },
     ...(opts.index === false && { robots: { index: false, follow: true } }),
   };
 }
