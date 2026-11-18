@@ -391,11 +391,8 @@ export default function Home() {
         {/* CTA: rising arrow */}
         <Stage shape="arrow" side="left">
           <Lines className="t-h1" lines={["Your next trade", "could teach", "an agent."]} />
-          <InView className="mt-10 flex flex-wrap items-center gap-8">
-            <ConstellationButton href="/simulate" className="reveal" style={i(0)}>
-              Launch simulator
-            </ConstellationButton>
-            <p className="reveal t-body" style={i(1)}>
+          <InView className="mt-10">
+            <p className="reveal t-body" style={i(0)}>
               $100,000 in simulated capital. Live markets. No real funds are used.
             </p>
           </InView>
