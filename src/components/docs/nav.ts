@@ -11,6 +11,7 @@ export const GROUPS = ["Getting started", "The simulator", "Teaching your agent"
 
 export const DOCS: DocLink[] = [
   { slug: "", title: "Introduction", group: "Getting started", summary: "What Kinfield is, how its pieces fit together, and what it is not." },
+  { slug: "quickstart", title: "Quickstart", group: "Getting started", summary: "Place your first simulated trade and see what it teaches your agent." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
