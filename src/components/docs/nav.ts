@@ -15,6 +15,7 @@ export const DOCS: DocLink[] = [
   { slug: "accounts", title: "Guest mode and accounts", group: "Getting started", summary: "What works as a guest, what signing in with GitHub adds, and how to reset or delete an account." },
   { slug: "simulator", title: "The trading terminal", group: "The simulator", summary: "Markets, live data and every panel of the simulator." },
   { slug: "orders", title: "Orders and positions", group: "The simulator", summary: "Market and limit orders, leverage, margin, fees, take profit, stop loss and liquidation." },
+  { slug: "chart", title: "Chart tools", group: "The simulator", summary: "Indicators, drawing tools and keyboard shortcuts on the price chart." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
