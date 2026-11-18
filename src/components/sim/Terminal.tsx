@@ -151,6 +151,7 @@ export function Terminal() {
   return (
     <div className="flex min-h-screen flex-col lg:h-screen lg:min-h-0 lg:overflow-hidden">
       <header className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line px-3 py-2">
+        <h1 className="sr-only">Kinfield simulator: paper trading on live Hyperliquid prices</h1>
         <Logo />
         <span className="rounded-full border border-cyan/40 bg-cyan/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan">
           Simulation

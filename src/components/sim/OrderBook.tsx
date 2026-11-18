@@ -1,5 +1,6 @@
 "use client";
 
+import { tabProps } from "./tabs";
 import { useMemo, useState } from "react";
 import { fmtNum, fmtPxAt, fmtTime, pxDecimals } from "@/lib/format";
 import { useBook, useTrades, type BookLevel } from "@/lib/hl-socket";
@@ -23,16 +24,19 @@ export function OrderBook({ coin, mid, szDecimals, onPickPrice }: Props) {
   const [tab, setTab] = useState<"book" | "trades">("book");
   const [sig, setSig] = useState<number>(5);
   const [unit, setUnit] = useState<"coin" | "usd">("coin");
+  const t = tabProps("book", ["book", "trades"] as const, tab, setTab);
 
   return (
     <div className="tpanel flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex items-center border-b border-line px-1" role="tablist">
-        <button role="tab" aria-selected={tab === "book"} onClick={() => setTab("book")} className="tab">
-          Order book
-        </button>
-        <button role="tab" aria-selected={tab === "trades"} onClick={() => setTab("trades")} className="tab">
-          Trades
-        </button>
+      <div className="flex items-center border-b border-line px-1">
+        <div {...t.list} aria-label="Market activity" className="flex">
+          <button {...t.tab("book")} onClick={() => setTab("book")} className="tab">
+            Order book
+          </button>
+          <button {...t.tab("trades")} onClick={() => setTab("trades")} className="tab">
+            Trades
+          </button>
+        </div>
         {tab === "book" && (
           <div className="ml-auto flex items-center gap-1 pr-1">
             {mid && (
@@ -62,11 +66,13 @@ export function OrderBook({ coin, mid, szDecimals, onPickPrice }: Props) {
           </div>
         )}
       </div>
-      {tab === "book" ? (
-        <Book coin={coin} sig={sig} unit={unit} szDecimals={szDecimals} onPickPrice={onPickPrice} />
-      ) : (
-        <Tape coin={coin} szDecimals={szDecimals} />
-      )}
+      <div {...t.panel} className="flex min-h-0 flex-1 flex-col">
+        {tab === "book" ? (
+          <Book coin={coin} sig={sig} unit={unit} szDecimals={szDecimals} onPickPrice={onPickPrice} />
+        ) : (
+          <Tape coin={coin} szDecimals={szDecimals} />
+        )}
+      </div>
     </div>
   );
 }

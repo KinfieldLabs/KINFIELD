@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { tabProps } from "./tabs";
 import { fmtNum, fmtPct, fmtPxAt, fmtUsd, pxDecimals } from "@/lib/format";
 import type { OpenResult } from "@/lib/account";
 import type { MarketCtx } from "@/lib/hyperliquid";
@@ -161,15 +162,19 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
       ? "Sending…"
       : (error ?? `${type === "limit" && resting ? "Place limit " : ""}${side === "long" ? "Long" : "Short"} ${coin}`);
 
+  // Guests can't place limit orders: picking Limit explains why instead of switching
+  const pickType = (t: "market" | "limit") =>
+    t === "limit" && guest ? setResult({ ok: false, text: "Sign in to place limit orders" }) : setType(t);
+  const orderTabs = tabProps("ticket", ["market", "limit"] as const, type, pickType);
+
   return (
     <div className="flex flex-col gap-3 p-3">
-      <div className="flex border-b border-line" role="tablist">
+      <div {...orderTabs.list} aria-label="Order type" className="flex border-b border-line">
         {(["market", "limit"] as const).map((t) => (
           <button
             key={t}
-            role="tab"
-            aria-selected={type === t}
-            onClick={() => (t === "limit" && guest ? setResult({ ok: false, text: "Sign in to place limit orders" }) : setType(t))}
+            {...orderTabs.tab(t)}
+            onClick={() => pickType(t)}
             className="tab capitalize"
             title={t === "limit" && guest ? "Sign in to place limit orders" : undefined}
           >
@@ -178,6 +183,7 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
           </button>
         ))}
       </div>
+      <div {...orderTabs.panel} className="flex flex-col gap-3">
       <p className="-mt-1 text-[11px] leading-snug text-muted">
         {type === "market"
           ? guest
@@ -302,10 +308,12 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
 
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] text-muted">Strategy: recorded with the trade</span>
-        <div className="flex flex-wrap gap-1">
+        <div role="group" aria-label="Strategy" className="flex flex-wrap gap-1">
           {STRATEGIES.map((s) => (
             <button
               key={s}
+              type="button"
+              aria-pressed={strategy === s}
               onClick={() => setStrategy(s)}
               className={`rounded-full border px-3 py-1.5 text-xs transition lg:px-2 lg:py-0.5 lg:text-[11px] ${
                 strategy === s ? "border-cyan bg-cyan/15 text-cream" : "border-line text-muted hover:text-cream"
@@ -359,6 +367,7 @@ export function OrderTicket({ coin, mid, market, freeMargin, guest, ready, pick,
         No real funds are used
       </p>
       {result && <p className={`text-xs ${result.ok ? "text-long" : "text-short"}`}>{result.text}</p>}
+      </div>
     </div>
   );
 }

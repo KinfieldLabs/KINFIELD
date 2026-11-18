@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { tabProps } from "./tabs";
 import type { MarketFeatures } from "@/lib/features";
 import { fmtDateTime, fmtDuration, fmtNum, fmtPct, fmtPxAt, fmtUsd, tone } from "@/lib/format";
 import type { MarketCtx } from "@/lib/hyperliquid";
@@ -37,6 +38,7 @@ interface Props {
 }
 
 type Tab = "positions" | "orders" | "history" | "agent";
+const TABS: readonly Tab[] = ["positions", "orders", "history", "agent"];
 
 const th = "px-3 py-1.5 text-left font-normal text-muted whitespace-nowrap";
 const td = "px-3 py-1.5 whitespace-nowrap";
@@ -72,15 +74,18 @@ export function Blotter(props: Props) {
     ["history", `Trade history (${history.length})`],
     ["agent", props.agentName ? `Agent ${props.agentName}` : "Your agent"],
   ];
+  const t = tabProps("blotter", TABS, tab, setTab);
 
   return (
     <div className="tpanel flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="scroll-fade flex items-center overflow-x-auto border-b border-line px-1 scroll-thin" role="tablist">
-        {tabs.map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className="tab">
-            {label}
-          </button>
-        ))}
+      <div className="scroll-fade flex items-center overflow-x-auto border-b border-line px-1 scroll-thin">
+        <div {...t.list} aria-label="Your trading" className="flex">
+          {tabs.map(([k, label]) => (
+            <button key={k} {...t.tab(k)} onClick={() => setTab(k)} className="tab">
+              {label}
+            </button>
+          ))}
+        </div>
         {tab === "history" && (
           <button
             onClick={exportData}
@@ -91,7 +96,7 @@ export function Blotter(props: Props) {
           </button>
         )}
       </div>
-      <div className="min-h-0 flex-1 overflow-auto scroll-thin">
+      <div {...t.panel} className="min-h-0 flex-1 overflow-auto scroll-thin">
         {tab === "positions" && <Positions {...props} />}
         {tab === "orders" && <Orders {...props} />}
         {tab === "history" && <History {...props} />}
