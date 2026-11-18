@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 /** The hero constellation's palette. */
 const COLORS = ["#fdf8ea", "#fdf8ea", "#3fc8f0", "#3fc8f0", "#7fa8ff", "#c9e9ff"];
 const SIZES = {
-  sm: "min-h-11 gap-2 px-4 text-sm sm:px-5",
-  md: "min-h-[52px] gap-2.5 px-7 text-[0.9375rem]",
+  sm: "min-h-11 px-4 text-sm sm:px-5",
+  md: "min-h-[52px] px-7 text-[0.9375rem]",
 };
 /** Room around the capsule for particles to drift and pulse into. */
 const BLEED = 36;
@@ -219,18 +219,6 @@ export function ConstellationButton({
         style={{ left: -BLEED - 1, top: -BLEED - 1, width: `calc(100% + ${BLEED * 2}px)`, height: `calc(100% + ${BLEED * 2}px)` }}
       />
       <span className="relative whitespace-nowrap">{children}</span>
-      <svg
-        viewBox="0 0 16 16"
-        aria-hidden
-        className="relative h-3.5 w-3.5 shrink-0 transition-transform duration-300 ease-[var(--ease-out)] group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M2.5 8h10M8.5 3.5 13 8l-4.5 4.5" />
-      </svg>
     </Link>
   );
 }
