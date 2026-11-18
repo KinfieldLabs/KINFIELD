@@ -22,6 +22,7 @@ export const DOCS: DocLink[] = [
   { slug: "autonomous", title: "The agent trading on its own", group: "Teaching your agent", summary: "When and how your agent trades its own simulated account." },
   { slug: "readiness", title: "Readiness checks", group: "Teaching your agent", summary: "The seven checks a track record is judged on, and how each is computed." },
   { slug: "ledger", title: "The verified ledger", group: "Verification", summary: "How fills are priced, how triggers are replayed, and the hash chain behind every account." },
+  { slug: "dataset", title: "The open dataset", group: "Verification", summary: "What is published, when, in which files and under which licence." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
