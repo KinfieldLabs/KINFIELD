@@ -62,6 +62,8 @@ export async function publishDataset(opts: { dryRunDir?: string } = {}): Promise
       await sql`update users set dataset_hash = null where id = ${w.userId}`;
       if (w.formerAgentId) await sql`update users set former_agent_id = null where id = ${w.userId}`;
     }
+    // Deleted accounts were kept only until their folders were gone
+    await sql`delete from users where github_id < 0 and login = 'deleted' and dataset_hash is null and former_agent_id is null`;
     await sql`update dataset_publishes set finished_at = now(), commit_sha = ${commit}, agents = ${counts.agents},
               changed = ${counts.changed}, trades = ${trades} where id = ${run.id}`;
     return { ...counts, commit };

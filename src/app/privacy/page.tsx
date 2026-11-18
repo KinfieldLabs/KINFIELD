@@ -83,10 +83,11 @@ export default function PrivacyPage() {
 
       <h2>Your choices and rights</h2>
       <p>
-        You can change what you share at any time. To get a copy of your data, correct it or delete your account,
-        email <a href={`mailto:${EMAIL}`}>{EMAIL}</a> from the email on your GitHub account, or tell us your GitHub
-        username. We&apos;ll delete your account and its records from our database and remove you from future dataset
-        publishes; copies already published remain as described above.
+        You can change what you share at any time. You can delete your account yourself in the simulator: open your
+        sharing settings and choose Delete account. That removes your account and its records from our database at
+        once, and your folder from the open dataset at the next nightly publish; copies already published remain as
+        described above. To get a copy of your data or correct it, email <a href={`mailto:${EMAIL}`}>{EMAIL}</a> from
+        the email on your GitHub account, or tell us your GitHub username.
       </p>
 
       <h2>Children</h2>

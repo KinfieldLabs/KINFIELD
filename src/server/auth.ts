@@ -139,3 +139,29 @@ export async function githubProfile(code: string): Promise<GithubProfile> {
   if (!res.ok) throw new Error(`GitHub profile request failed (${res.status})`);
   return res.json();
 }
+
+/**
+ * Deletes a person's account: every simulated account with its trades, orders and ledger,
+ * their agent, and every sign-in session. If nothing of theirs was ever published, the user
+ * row goes too. If a dataset folder exists, the row stays as a placeholder with no identity
+ * (a negative GitHub id that can never match a real sign-in) and sharing off, so the next
+ * publish removes the folder and then deletes the placeholder.
+ */
+export async function deleteAccount(userId: string) {
+  await db().begin(async (tx) => {
+    await tx`delete from sim_accounts where user_id = ${userId}`;
+    await tx`delete from agents where user_id = ${userId}`;
+    await tx`delete from sessions where user_id = ${userId}`;
+    const [gone] = await tx`
+      delete from users where id = ${userId} and dataset_hash is null and former_agent_id is null
+      returning id`;
+    if (gone) return;
+    await tx`
+      update users set
+        github_id = -(floor(random() * 9e15)::bigint + 1),
+        login = 'deleted', name = null, avatar_url = null,
+        publish_data = false, show_login = false, publish_rationale = false
+      where id = ${userId}`;
+  });
+  (await cookies()).delete(SESSION_COOKIE);
+}

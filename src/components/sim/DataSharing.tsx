@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Sharing } from "@/lib/account";
 
 type Save = (c: Partial<Pick<Sharing, "publishData" | "showLogin" | "publishRationale">>) => Promise<string | null>;
@@ -63,9 +63,11 @@ export function SharingSettings({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const deleted = useRef(false);
 
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // After a deletion, every way out leads home, signed out
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && (deleted.current ? window.location.assign("/") : onClose());
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
   }, [onClose]);
@@ -79,6 +81,9 @@ export function SharingSettings({
   };
 
   const toggle = (k: keyof typeof draft) => setDraft((d) => ({ ...d, [k]: !d[k] }));
+
+  const [deleting, setDeleting] = useState(false);
+  if (deleting) return <DeleteAccount sharing={sharing} login={login} onBack={() => setDeleting(false)} onClose={onClose} onDeleted={() => (deleted.current = true)} />;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 p-4" onMouseDown={onClose}>
@@ -129,7 +134,13 @@ export function SharingSettings({
         </p>
         {error && <p className="mt-2 text-xs text-short">{error}</p>}
 
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            onClick={() => setDeleting(true)}
+            className="mr-auto rounded-md py-1.5 text-xs text-muted underline-offset-2 hover:text-short hover:underline"
+          >
+            Delete account
+          </button>
           <button onClick={onClose} className="rounded-md px-3 py-1.5 text-xs text-muted hover:text-cream">
             Cancel
           </button>
@@ -175,5 +186,116 @@ function Toggle({
         <span className="text-[11px] leading-relaxed text-muted">{detail}</span>
       </span>
     </button>
+  );
+}
+
+/** Deleting the account, behind typing the username. Ends signed out, on the home page. */
+function DeleteAccount({
+  sharing,
+  login,
+  onBack,
+  onClose,
+  onDeleted,
+}: {
+  sharing: Sharing;
+  login: string;
+  onBack: () => void;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const matches = typed.trim().toLowerCase() === login.toLowerCase();
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/me/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirm: typed }),
+    }).catch(() => null);
+    setBusy(false);
+    if (res?.ok) {
+      onDeleted();
+      return setDone(true);
+    }
+    const body = await res?.json().catch(() => ({}));
+    setError(body?.error ?? "Couldn't delete the account. Try again.");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 p-4" onMouseDown={done ? undefined : onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-title"
+        onMouseDown={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-xl border border-line bg-navy-900 p-5 shadow-2xl shadow-black/50"
+      >
+        {done ? (
+          <>
+            <h2 id="delete-title" className="text-base font-semibold">
+              Account deleted
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Your trades, ledger, agent and sessions are gone from our database, and you&apos;re signed out.
+              {` If ${sharing.agentId} is in the open dataset, its folder is removed at the next nightly publish.`}
+            </p>
+            <div className="mt-4 flex justify-end">
+              <button
+                autoFocus
+                onClick={() => window.location.assign("/")}
+                className="rounded-md bg-cyan px-3 py-1.5 text-xs font-semibold text-navy-950"
+              >
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 id="delete-title" className="text-base font-semibold">
+              Delete your account?
+            </h2>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              This permanently deletes your simulated accounts, every trade and its ledger, your agent{" "}
+              <span className="font-mono text-cream">{sharing.agentId}</span> and its trades, and signs you out everywhere.
+              It can&apos;t be undone.
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              If you shared trades, the folder is removed from the open dataset at the next nightly publish. Copies
+              already published stay in the repository&apos;s history and anywhere they were downloaded.
+            </p>
+            <label className="mt-4 block text-xs text-mist">
+              Type <span className="font-mono text-cream">{login}</span> to confirm
+              <input
+                autoFocus
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && matches && !busy && remove()}
+                autoComplete="off"
+                spellCheck={false}
+                className="mt-1.5 w-full rounded-md border border-line bg-navy-950/60 px-2.5 py-2 font-mono text-sm text-cream outline-none focus:border-short/70"
+              />
+            </label>
+            {error && <p className="mt-2 text-xs text-short">{error}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={onBack} className="rounded-md px-3 py-1.5 text-xs text-muted hover:text-cream">
+                Back
+              </button>
+              <button
+                onClick={remove}
+                disabled={!matches || busy}
+                className="rounded-md bg-short px-3 py-1.5 text-xs font-semibold text-cream disabled:opacity-40"
+              >
+                {busy ? "Deleting…" : "Delete account"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
