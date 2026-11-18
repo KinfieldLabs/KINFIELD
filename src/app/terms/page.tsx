@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import Link from "next/link";
 import { LegalPage } from "@/components/LegalPage";
 
-export const metadata: Metadata = {
-  title: "Terms · Kinfield",
-  description: "The terms for using Kinfield's paper-trading simulator, its agents and its open dataset.",
-};
+export const metadata: Metadata = pageMeta(
+  "/terms",
+  "Terms · Kinfield",
+  "The terms for using Kinfield's paper trading simulator, its agents and its open dataset.",
+);
 
 const EMAIL = "kinfieldlabs@proton.me";
 

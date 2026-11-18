@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { pageMeta, SITE_URL } from "@/lib/meta";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], weight: ["200", "300", "400", "600", "700"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Kinfield: Teach agents to trade",
-  description:
+  metadataBase: new URL(SITE_URL),
+  ...pageMeta(
+    "/",
+    "Kinfield: Teach agents to trade",
     "Train the next generation of AI trading agents. Test your strategies in simulated markets and help agents learn from your trades. Powered by Hyperliquid.",
+  ),
   icons: { icon: "/brand/mark.svg" },
 };
 

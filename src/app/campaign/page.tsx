@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import { ComingSoon } from "@/components/ComingSoon";
 
-export const metadata: Metadata = { title: "Campaign · Kinfield" };
+export const metadata: Metadata = pageMeta("/campaign", "Campaign · Kinfield", "Kinfield's campaign is coming soon.", { index: false });
 
 /** Rough sketch of the campaign page, only ever shown blurred. */
 function Preview() {

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import { LegalPage } from "@/components/LegalPage";
 
-export const metadata: Metadata = {
-  title: "Privacy · Kinfield",
-  description: "What Kinfield collects, where it goes, what becomes public, and how to have it removed.",
-};
+export const metadata: Metadata = pageMeta(
+  "/privacy",
+  "Privacy · Kinfield",
+  "What Kinfield collects, where it goes, what becomes public, and how to have it removed.",
+);
 
 const EMAIL = "kinfieldlabs@proton.me";
 

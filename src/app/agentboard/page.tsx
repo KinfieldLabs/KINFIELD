@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import { ComingSoon } from "@/components/ComingSoon";
 
-export const metadata: Metadata = { title: "Agentboard · Kinfield" };
+export const metadata: Metadata = pageMeta("/agentboard", "Agentboard · Kinfield", "A leaderboard of Kinfield agents is coming soon.", { index: false });
 
 /** Rough sketch of the agent leaderboard, only ever shown blurred. */
 function Preview() {

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { pageMeta } from "@/lib/meta";
 import { ComingSoon } from "@/components/ComingSoon";
 
-export const metadata: Metadata = { title: "Docs · Kinfield" };
+export const metadata: Metadata = pageMeta("/docs", "Docs · Kinfield", "Kinfield documentation is coming soon.", { index: false });
 
 /** Rough sketch of the docs, only ever shown blurred. */
 function Preview() {
