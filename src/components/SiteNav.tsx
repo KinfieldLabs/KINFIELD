@@ -28,6 +28,7 @@ const SECTIONS = [
   ["how", "How it works"],
   ["why", "Why Kinfield"],
   ["features", "Features"],
+  ["faq", "FAQ"],
 ] as const;
 
 /** Pages of their own (not open to the public yet). */
