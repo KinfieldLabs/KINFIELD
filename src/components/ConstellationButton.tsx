@@ -1,28 +1,25 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-/** Same palette, spring and cursor push as the hero constellation. */
-const COLORS = ["#fdf8ea", "#fdf8ea", "#fdf8ea", "#3fc8f0", "#3fc8f0", "#7fa8ff", "#c9e9ff"];
-const SPRING = 0.02;
-const DAMPING = 0.85;
-const PUSH_RADIUS = 70;
-const PUSH = 2.4;
+/** The hero constellation's palette. */
+const COLORS = ["#fdf8ea", "#fdf8ea", "#3fc8f0", "#3fc8f0", "#7fa8ff", "#c9e9ff"];
 const SIZES = {
-  sm: "px-4 py-2.5 text-sm sm:px-5",
-  md: "px-8 py-[1.05rem] text-[0.9375rem]",
+  sm: "min-h-11 gap-2 px-4 text-sm sm:px-5",
+  md: "min-h-[52px] gap-2.5 px-7 text-[0.9375rem]",
 };
-/** Room around the button for scattered particles to fly into. */
-const BLEED = 48;
+/** Room around the capsule for particles to drift and pulse into. */
+const BLEED = 36;
+/** How long the click pulse plays before the page changes. */
+const PULSE_MS = 200;
 
 interface P {
-  hx: number; // home
-  hy: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
+  s: number; // position along the outline, 0 to 1
+  rest: number; // resting distance outside the border, in px
+  speed: number; // drift along the outline, per ms
+  wobble: number;
   size: number;
   rot: number;
   spin: number;
@@ -30,25 +27,34 @@ interface P {
   alpha: number;
 }
 
-/** Random point in a rounded rectangle; `edge` keeps it close to the outline. */
-function samplePill(w: number, h: number, edge: boolean): [number, number] {
+/**
+ * A point on the capsule's outline: `s` runs once round it, `d` is the distance outward
+ * from the border (negative is inside).
+ */
+function onPill(w: number, h: number, s: number, d: number): [number, number] {
   const r = h / 2;
-  for (;;) {
-    const x = Math.random() * w;
-    const y = Math.random() * h;
-    // distance inside the pill shape (negative = outside)
-    const cx = Math.min(Math.max(x, r), w - r);
-    const inside = r - Math.hypot(x - cx, y - r);
-    if (inside < 0) continue;
-    if (edge && inside > 7) continue;
-    return [x, y];
+  const straight = w - 2 * r;
+  const arc = Math.PI * r;
+  const total = 2 * straight + 2 * arc;
+  let at = (((s % 1) + 1) % 1) * total;
+  if (at < straight) return [r + at, -d]; // top edge, left to right
+  at -= straight;
+  if (at < arc) {
+    const a = -Math.PI / 2 + (at / arc) * Math.PI; // right end
+    return [w - r + Math.cos(a) * (r + d), r + Math.sin(a) * (r + d)];
   }
+  at -= arc;
+  if (at < straight) return [w - r - at, h + d]; // bottom edge, right to left
+  at -= straight;
+  const a = Math.PI / 2 + (at / arc) * Math.PI; // left end
+  return [r + Math.cos(a) * (r + d), r + Math.sin(a) * (r + d)];
 }
 
 /**
- * A button drawn by the constellation itself: no fill of its own, just triangles
- * forming the pill on the page background. The cursor pushes them aside and they
- * spring back, like the hero. Still for people who prefer reduced motion.
+ * The call to action: a navy capsule with a thin cyan border and a few particles from the
+ * hero constellation drifting round its edge. Hovering gathers them onto the border and
+ * sends them round it; a click sends a brief pulse through them before the page changes.
+ * Under reduced motion the particles hold still in the same arrangement.
  */
 export function ConstellationButton({
   href,
@@ -66,6 +72,8 @@ export function ConstellationButton({
 }) {
   const box = useRef<HTMLAnchorElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const pulse = useRef<(() => void) | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const el = canvas.current;
@@ -76,7 +84,11 @@ export function ConstellationButton({
     let w = 0;
     let h = 0;
     let ps: P[] = [];
-    const mouse = { x: -9999, y: -9999 };
+    let heat = 0; // 0 at rest, 1 while hovered or focused
+    let want = 0;
+    let pulsedAt = -Infinity;
+    let last = performance.now();
+    let clock = 0;
 
     const build = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -85,71 +97,53 @@ export function ConstellationButton({
       el.width = (w + BLEED * 2) * dpr;
       el.height = (h + BLEED * 2) * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, BLEED * dpr, BLEED * dpr);
-      const outline = Math.round((w + h) * 0.55);
-      const fill = Math.round((w * h) / 260);
-      ps = Array.from({ length: outline + fill }, (_, i) => {
-        const [hx, hy] = samplePill(w, h, i < outline);
-        return {
-          hx,
-          hy,
-          x: hx,
-          y: hy,
-          vx: 0,
-          vy: 0,
-          size: i < outline ? 1.2 + Math.random() ** 2 * 2.6 : 0.9 + Math.random() * 1.6,
-          rot: Math.random() * Math.PI * 2,
-          spin: (Math.random() - 0.5) * 0.02,
-          color: COLORS[(Math.random() * COLORS.length) | 0],
-          alpha: i < outline ? 0.55 + Math.random() * 0.45 : 0.18 + Math.random() * 0.3,
-        };
-      });
+      // A few, spread evenly round the outline with some jitter, so the label stays clear
+      const n = Math.max(12, Math.round((2 * w + 2 * h) / 14));
+      ps = Array.from({ length: n }, (_, i) => ({
+        s: (i + Math.random() * 0.7) / n,
+        rest: 3 + Math.random() ** 1.5 * 12,
+        speed: (0.4 + Math.random() * 0.6) * 0.000004,
+        wobble: Math.random() * Math.PI * 2,
+        size: 1 + Math.random() ** 2 * 2.2,
+        rot: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.002,
+        color: COLORS[(Math.random() * COLORS.length) | 0],
+        alpha: 0.45 + Math.random() * 0.45,
+      }));
     };
 
-    const draw = (t: number) => {
+    const draw = (now: number) => {
+      const dt = Math.min(now - last, 50);
+      last = now;
+      if (!reduced) {
+        heat += (want - heat) * Math.min(1, dt / 160);
+        clock += dt * (1 + heat * 7); // the orbit speeds up on hover
+      }
+      // Pulse: a quick push outward that settles back, contained near the capsule
+      const since = now - pulsedAt;
+      const kick = since < 420 ? Math.sin((since / 420) * Math.PI) * 14 : 0;
+
       ctx.clearRect(-BLEED, -BLEED, w + BLEED * 2, h + BLEED * 2);
       for (const p of ps) {
-        if (!reduced) {
-          // spring home with a slight drift, pushed away by the cursor
-          const gx = p.hx + Math.sin(t / 1700 + p.rot) * 0.8;
-          const gy = p.hy + Math.cos(t / 1900 + p.rot) * 0.8;
-          p.vx += (gx - p.x) * SPRING;
-          p.vy += (gy - p.y) * SPRING;
-          const dx = p.x - mouse.x;
-          const dy = p.y - mouse.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 < PUSH_RADIUS * PUSH_RADIUS) {
-            const d = Math.sqrt(d2) || 1;
-            const f = (1 - d / PUSH_RADIUS) * PUSH;
-            p.vx += (dx / d) * f;
-            p.vy += (dy / d) * f;
-          }
-          p.vx *= DAMPING;
-          p.vy *= DAMPING;
-          p.x += p.vx;
-          p.y += p.vy;
-          p.rot += p.spin;
-        }
+        const s = p.s + clock * p.speed;
+        // At rest they drift loosely outside the border; hovered, they gather onto it
+        const d = p.rest * (1 - heat * 0.85) + (reduced ? 0 : Math.sin(clock / 900 + p.wobble) * 1.5 * (1 - heat)) + kick * (0.6 + (p.rest / 15) * 0.8);
+        const [x, y] = onPill(w, h, s, d);
         ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rot);
-        ctx.globalAlpha = p.alpha;
+        ctx.translate(x, y);
+        ctx.rotate(p.rot + clock * p.spin);
+        ctx.globalAlpha = Math.min(1, p.alpha + heat * 0.3 + (kick ? 0.3 : 0));
         ctx.fillStyle = p.color;
+        const sz = p.size * (1 + kick / 40);
         ctx.beginPath();
-        ctx.moveTo(0, -p.size);
-        ctx.lineTo(p.size * 0.87, p.size * 0.5);
-        ctx.lineTo(-p.size * 0.87, p.size * 0.5);
+        ctx.moveTo(0, -sz);
+        ctx.lineTo(sz * 0.87, sz * 0.5);
+        ctx.lineTo(-sz * 0.87, sz * 0.5);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
       }
     };
-
-    const onMove = (e: PointerEvent) => {
-      const r = btn.getBoundingClientRect();
-      mouse.x = e.clientX - r.left;
-      mouse.y = e.clientY - r.top;
-    };
-    const onLeave = () => (mouse.x = mouse.y = -9999);
 
     let raf = 0;
     let visible = false;
@@ -157,17 +151,30 @@ export function ConstellationButton({
       draw(t);
       raf = visible ? requestAnimationFrame(loop) : 0;
     };
+    const wake = () => {
+      if (!raf && visible && !reduced) raf = requestAnimationFrame(loop);
+    };
     // Only animate while the button is on screen
     const io = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
-      if (visible && !raf && !reduced) raf = requestAnimationFrame(loop);
+      wake();
     });
 
+    const on = () => (want = 1);
+    const off = () => (want = btn.matches(":focus-visible") ? 1 : 0);
+    const blur = () => (want = btn.matches(":hover") ? 1 : 0);
+    pulse.current = () => {
+      pulsedAt = performance.now();
+      wake();
+    };
+
     build();
-    draw(0);
+    draw(performance.now());
     if (!reduced) {
-      window.addEventListener("pointermove", onMove, { passive: true });
-      document.addEventListener("pointerleave", onLeave);
+      btn.addEventListener("pointerenter", on);
+      btn.addEventListener("pointerleave", off);
+      btn.addEventListener("focus", on);
+      btn.addEventListener("blur", blur);
       io.observe(btn);
     }
     const ro = new ResizeObserver(() => {
@@ -179,25 +186,51 @@ export function ConstellationButton({
       cancelAnimationFrame(raf);
       io.disconnect();
       ro.disconnect();
-      window.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerleave", onLeave);
+      btn.removeEventListener("pointerenter", on);
+      btn.removeEventListener("pointerleave", off);
+      btn.removeEventListener("focus", on);
+      btn.removeEventListener("blur", blur);
+      pulse.current = null;
     };
   }, []);
+
+  const click = (e: MouseEvent<HTMLAnchorElement>) => {
+    // New tabs and windows open as usual; reduced motion goes straight there
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !pulse.current) return;
+    e.preventDefault();
+    pulse.current();
+    router.prefetch(href);
+    setTimeout(() => router.push(href), PULSE_MS);
+  };
 
   return (
     <Link
       ref={box}
       href={href}
+      onClick={click}
       style={style}
-      className={`group relative inline-flex items-center rounded-[var(--radius-pill)] ${SIZES[size]} font-bold text-white [text-shadow:0_0_12px_var(--navy-900),0_0_4px_var(--navy-900)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan ${className}`}
+      className={`group relative inline-flex items-center justify-center rounded-[var(--radius-pill)] border border-cyan/35 bg-navy-800/80 ${SIZES[size]} font-semibold text-cream shadow-[0_0_0_0_rgba(63,200,240,0)] transition-[border-color,box-shadow,translate,background-color] duration-300 ease-[var(--ease-out)] hover:-translate-y-0.5 hover:border-cyan/80 hover:bg-navy-800 hover:shadow-[0_0_22px_-4px_rgba(63,200,240,0.55)] active:translate-y-0 focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-cyan motion-reduce:hover:translate-y-0 ${className}`}
     >
       <canvas
         ref={canvas}
         aria-hidden
         className="pointer-events-none absolute"
-        style={{ left: -BLEED, top: -BLEED, width: `calc(100% + ${BLEED * 2}px)`, height: `calc(100% + ${BLEED * 2}px)` }}
+        style={{ left: -BLEED - 1, top: -BLEED - 1, width: `calc(100% + ${BLEED * 2}px)`, height: `calc(100% + ${BLEED * 2}px)` }}
       />
-      <span className="relative transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-105">{children}</span>
+      <span className="relative whitespace-nowrap">{children}</span>
+      <svg
+        viewBox="0 0 16 16"
+        aria-hidden
+        className="relative h-3.5 w-3.5 shrink-0 transition-transform duration-300 ease-[var(--ease-out)] group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M2.5 8h10M8.5 3.5 13 8l-4.5 4.5" />
+      </svg>
     </Link>
   );
 }
