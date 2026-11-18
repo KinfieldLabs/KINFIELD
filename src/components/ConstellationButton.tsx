@@ -97,14 +97,14 @@ export function ConstellationButton({
       el.width = (w + BLEED * 2) * dpr;
       el.height = (h + BLEED * 2) * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, BLEED * dpr, BLEED * dpr);
-      // A few, spread evenly round the outline with some jitter, so the label stays clear
-      const n = Math.max(12, Math.round((2 * w + 2 * h) / 14));
+      // A dense ring hugging the outline with a few strays further out, so the label stays clear
+      const n = Math.max(40, Math.round((2 * w + 2 * h) / 4));
       ps = Array.from({ length: n }, (_, i) => ({
         s: (i + Math.random() * 0.7) / n,
-        rest: 3 + Math.random() ** 1.5 * 12,
+        rest: -1 + Math.random() ** 2.4 * 15,
         speed: (0.4 + Math.random() * 0.6) * 0.000004,
         wobble: Math.random() * Math.PI * 2,
-        size: 1 + Math.random() ** 2 * 2.2,
+        size: 0.8 + Math.random() ** 2 * 2,
         rot: Math.random() * Math.PI * 2,
         spin: (Math.random() - 0.5) * 0.002,
         color: COLORS[(Math.random() * COLORS.length) | 0],
