@@ -5,7 +5,7 @@ import { LegalPage } from "@/components/LegalPage";
 
 export const metadata: Metadata = pageMeta(
   "/terms",
-  "Terms · Kinfield",
+  "Terms of Use · Kinfield",
   "The terms for using Kinfield's paper trading simulator, its agents and its open dataset.",
 );
 
@@ -13,7 +13,7 @@ const EMAIL = "kinfieldlabs@proton.me";
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms" updated="17 November 2026">
+    <LegalPage title="Terms of Use" updated="17 November 2026">
       <p>
         These terms cover your use of kinfield.si, its simulator, the experimental agents and the open dataset. By
         using Kinfield you agree to them. If you don&apos;t, please don&apos;t use the site.
