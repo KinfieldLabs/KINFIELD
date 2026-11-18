@@ -24,6 +24,7 @@ export const DOCS: DocLink[] = [
   { slug: "ledger", title: "The verified ledger", group: "Verification", summary: "How fills are priced, how triggers are replayed, and the hash chain behind every account." },
   { slug: "dataset", title: "The open dataset", group: "Verification", summary: "What is published, when, in which files and under which licence." },
   { slug: "verify", title: "Verifying the data", group: "Verification", summary: "Rechecking every published trade with verify.mjs, or by hand." },
+  { slug: "api", title: "API reference", group: "Reference", summary: "Every endpoint the simulator uses, with requests, responses, errors and limits." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
