@@ -13,7 +13,6 @@ export const metadata: Metadata = {
     "Kinfield: Teach agents to trade",
     "Train the next generation of AI trading agents. Test your strategies in simulated markets and help agents learn from your trades. Powered by Hyperliquid.",
   ),
-  icons: { icon: "/brand/mark.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
