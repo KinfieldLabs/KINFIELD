@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { DOCS, docHref } from "@/components/docs/nav";
 import { SITE_URL } from "@/lib/meta";
 
 /**
@@ -11,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ["/simulate", 0.9],
     ["/privacy", 0.3],
     ["/terms", 0.3],
+    ...DOCS.map((d): [string, number] => [docHref(d.slug), d.slug ? 0.6 : 0.7]),
   ];
   return pages.map(([path, priority]) => ({ url: `${SITE_URL}${path}`, changeFrequency: "weekly", priority }));
 }
