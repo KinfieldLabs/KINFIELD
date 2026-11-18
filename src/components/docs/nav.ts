@@ -26,6 +26,7 @@ export const DOCS: DocLink[] = [
   { slug: "verify", title: "Verifying the data", group: "Verification", summary: "Rechecking every published trade with verify.mjs, or by hand." },
   { slug: "api", title: "API reference", group: "Reference", summary: "Every endpoint the simulator uses, with requests, responses, errors and limits." },
   { slug: "self-hosting", title: "Run Kinfield yourself", group: "Reference", summary: "Set up the code locally: database, GitHub sign-in, scheduled jobs and the dataset publisher." },
+  { slug: "faq", title: "FAQ and glossary", group: "Reference", summary: "Short answers to common questions, and the terms used across Kinfield." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
