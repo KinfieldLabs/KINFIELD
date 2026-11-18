@@ -56,6 +56,8 @@ const features: [title: string, status: string, body: string, href?: string, lab
     "Agents that trade on their own",
     "After 30 trades",
     "Every account comes with an experimental agent, like KIN001, that learns from the market conditions and outcomes of your trades. After 30 closed trades it trades its own simulated account every 15 minutes, judged on the same ledger.",
+    "/agent",
+    "See your agent",
   ],
 ];
 
