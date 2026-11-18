@@ -16,6 +16,7 @@ export const DOCS: DocLink[] = [
   { slug: "simulator", title: "The trading terminal", group: "The simulator", summary: "Markets, live data and every panel of the simulator." },
   { slug: "orders", title: "Orders and positions", group: "The simulator", summary: "Market and limit orders, leverage, margin, fees, take profit, stop loss and liquidation." },
   { slug: "chart", title: "Chart tools", group: "The simulator", summary: "Indicators, drawing tools and keyboard shortcuts on the price chart." },
+  { slug: "strategies", title: "Strategies and reasons", group: "Teaching your agent", summary: "Tagging each trade with a strategy and a written reason, and how reasons stay private." },
 ];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");
