@@ -49,6 +49,8 @@ const features: [title: string, status: string, body: string, href?: string, lab
     "Open dataset",
     "Opt in",
     "Opt in and your trades are published nightly to GitHub under CC BY 4.0, with a script anyone can run to check every one of them.",
+    "https://github.com/KinfieldLabs/kinfield-datasets",
+    "See the open dataset on GitHub (opens in a new tab)",
   ],
   [
     "Agents that trade on their own",
