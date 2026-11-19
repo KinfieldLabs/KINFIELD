@@ -300,7 +300,7 @@ function Icon({ kind }: { kind: "pass" | "todo" | "over" }) {
   );
 }
 
-function CheckCard({ c }: { c: Check }) {
+export function CheckCard({ c }: { c: Check }) {
   const over = c.kind === "limit" && c.progress >= 1;
   const state = c.pass ? "pass" : over ? "over" : "todo";
   const label = c.pass ? "Met" : over ? "Over the limit" : "Not yet";
@@ -346,7 +346,7 @@ function CheckCard({ c }: { c: Check }) {
   );
 }
 
-function Stats({ s, open }: { s: TrackStats; open: number }) {
+export function Stats({ s, open }: { s: TrackStats; open: number }) {
   const tiles: [string, string, string?][] = [
     ["Net P&L", fmtUsd(s.netPnl, true), tone(s.netPnl)],
     ["Return", fmtPct(s.returnPct), tone(s.returnPct)],
@@ -553,7 +553,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-function AgentTrades({ title, rows, empty }: { title: string; rows: AgentTrade[]; empty: string }) {
+export function AgentTrades({ title, rows, empty }: { title: string; rows: AgentTrade[]; empty: string }) {
   const closed = rows.some((r) => r.closedAt);
   return (
     <div className="overflow-hidden rounded-xl border border-line">
