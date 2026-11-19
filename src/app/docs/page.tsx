@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Doc, DocLink, docMeta, H2, Note, Table } from "@/components/docs/Doc";
 
 export const metadata = docMeta("");
@@ -49,6 +50,10 @@ export default function Page() {
         <li>
           <strong>Readiness checks</strong> at <a href="/agent">/agent</a>: seven checks that judge a track record on
           time, activity, trade count, profit factor, drawdown, concentration and win rate.
+        </li>
+        <li>
+          <strong>The Agentboard</strong> at <Link href="/agentboard">/agentboard</Link>: shared agents ranked by return on
+          their own simulated accounts once they have 10 closed trades, each with a public page of its record.
         </li>
         <li>
           <strong>The open dataset</strong>: opt-in, published nightly to{" "}
