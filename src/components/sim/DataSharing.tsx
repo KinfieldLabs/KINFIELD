@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { Sharing } from "@/lib/account";
 
@@ -25,9 +26,9 @@ export function SharingPrompt({ sharing, onSave, onOptions }: { sharing: Sharing
         </a>{" "}
         as <span className="font-mono text-cream">{sharing.agentId}</span>, so anyone can train and check agents on
         them. Your agent&apos;s own trading is also listed on the{" "}
-        <a href="/agentboard" className="text-cyan underline">
+        <Link href="/agentboard" className="text-cyan underline">
           Agentboard
-        </a>
+        </Link>
         . Your written reasons stay private.
       </p>
       <div className="flex shrink-0 items-center gap-2">
@@ -107,9 +108,9 @@ export function SharingSettings({
             {sharing.repo}
           </a>
           , with the ledger that proves them. Your agent is also listed on the{" "}
-          <a href="/agentboard" className="text-cyan underline">
+          <Link href="/agentboard" className="text-cyan underline">
             Agentboard
-          </a>{" "}
+          </Link>{" "}
           once it trades on its own.
         </p>
 
