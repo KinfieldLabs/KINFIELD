@@ -89,7 +89,7 @@ export async function evaluation(user: User): Promise<Evaluation> {
   };
 }
 
-const toAgentTrade = (r: postgres.Row): AgentTrade => ({
+export const toAgentTrade = (r: postgres.Row): AgentTrade => ({
   id: r.id,
   coin: r.coin,
   side: r.side,
@@ -145,7 +145,7 @@ async function autonomousTrial(userId: string): Promise<AutonomousTrial> {
   };
 }
 
-async function evaluateRow(a: postgres.Row): Promise<AccountEvaluation> {
+export async function evaluateRow(a: postgres.Row): Promise<AccountEvaluation> {
   const sql = db();
   const [closed, [open], [chain]] = await Promise.all([
     sql`select pnl, opened_at, closed_at from positions
