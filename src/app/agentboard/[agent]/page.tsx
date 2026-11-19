@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { AgentTrades, CheckCard, Stats } from "@/components/agent/AgentDashboard";
 import { EquityChart } from "@/components/agent/EquityChart";
 import { pageMeta } from "@/lib/meta";
-import { fmtDateTime, fmtPct, tone } from "@/lib/format";
-import { agentProfile, isAgentName } from "@/server/agentboard";
+import { fmtDateTime, fmtDuration, fmtPct, fmtUsd, tone } from "@/lib/format";
+import { agentProfile, isAgentName, type AgentProfile, type LearningProfile } from "@/server/agentboard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +21,123 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   );
 }
 
+function Owner({ p }: { p: AgentProfile }) {
+  return p.github ? (
+    <>
+      Taught by{" "}
+      <a href={`https://github.com/${p.github}`} target="_blank" rel="noreferrer" className="text-cyan underline-offset-2 hover:underline">
+        @{p.github}
+      </a>
+    </>
+  ) : (
+    <>Owner not shown</>
+  );
+}
+
+function Learning({ p }: { p: LearningProfile }) {
+  const done = Math.min(p.teaching, p.needed);
+  const left = p.needed - done;
+  const t = p.teacher;
+  const tiles: [string, string, string?][] = [
+    ["Closed trades", String(t.trades)],
+    ["Win rate", t.winRate == null ? "N/A" : fmtPct(t.winRate, 1).replace("+", "")],
+    ["Net P&L", fmtUsd(t.netPnl, true), tone(t.netPnl)],
+    ["Profit factor", t.profitFactor == null ? (t.grossProfit > 0 ? "No losses" : "N/A") : t.profitFactor.toFixed(2)],
+    ["Average hold", t.avgHoldMs == null ? "N/A" : fmtDuration(t.avgHoldMs)],
+    ["Last trade", t.lastTradeAt ? fmtDateTime(t.lastTradeAt) : "None yet"],
+  ];
+  return (
+    <div className="flex flex-col gap-6">
+      <Link href="/agentboard" className="w-fit text-sm text-muted hover:text-cyan">
+        ← All agents
+      </Link>
+
+      <section className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="t-label text-cyan">Agentboard</p>
+          <h1 className="num mt-3 text-4xl text-cream sm:text-5xl">{p.agent}</h1>
+          <p className="mt-3 text-sm text-mist">
+            <Owner p={p} /> · joined {fmtDateTime(p.joinedAt)}
+          </p>
+        </div>
+        <span className="rounded-full border border-line px-3 py-1.5 text-sm text-mist">Learning</span>
+      </section>
+
+      <section className="tpanel p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold">Teaching progress</h2>
+          <span className="text-sm text-mist">
+            <span className="num text-cream">{done}</span> of {p.needed} teaching trades
+          </span>
+        </div>
+        <div
+          className="mt-3 h-2.5 overflow-hidden rounded-full bg-cyan/15"
+          role="meter"
+          aria-label="Teaching trades"
+          aria-valuemin={0}
+          aria-valuemax={p.needed}
+          aria-valuenow={done}
+        >
+          <div className="h-full rounded-full bg-cyan" style={{ width: `${Math.max((done / p.needed) * 100, done ? 3 : 0)}%` }} />
+        </div>
+        <p className="mt-4 text-sm leading-relaxed text-mist">
+          {left > 0 ? (
+            <>
+              {left} more closed trade{left === 1 ? "" : "s"} to go. Then {p.agent} starts trading its own simulated
+              account every 15 minutes, and its record, rank and readiness checks show up here.
+            </>
+          ) : (
+            <>Ready. {p.agent} opens its own simulated account on its next scheduled run, within 15 minutes.</>
+          )}
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-muted">
+          A teaching trade is one of its owner&apos;s closed trades with market context recorded at entry.{" "}
+          {p.model
+            ? `Its model was last trained on ${p.model.samples} of them, ${fmtDateTime(p.model.trainedAt)}.`
+            : "It hasn't been trained yet."}{" "}
+          <Link href="/docs/agent" className="text-cyan underline-offset-2 hover:underline">
+            How the agent learns
+          </Link>
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold">Its teacher&apos;s record</h2>
+        <p className="mt-1 text-xs text-muted">Every simulated trade its owner has closed, the record it learns from.</p>
+        <div className="tpanel mt-3 grid grid-cols-2 gap-px overflow-hidden bg-line/40 p-0 sm:grid-cols-3">
+          {tiles.map(([label, value, cls]) => (
+            <div key={label} className="flex flex-col gap-0.5 bg-navy-900/95 px-4 py-3">
+              <span className="text-[11px] text-muted">{label}</span>
+              <span className={`num text-sm ${cls || "text-cream"}`}>{value}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="tpanel p-4 text-sm">
+        <h2 className="font-semibold">Check it yourself</h2>
+        <p className="mt-2 leading-relaxed text-mist">
+          Its owner&apos;s trades are published nightly to the open dataset, with the hash-chained ledger that proves them.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+          <a href={p.dataset} target="_blank" rel="noreferrer" className="text-cyan underline-offset-2 hover:underline">
+            {p.agent} in the open dataset
+          </a>
+          <Link href="/docs/verify" className="text-cyan underline-offset-2 hover:underline">
+            How to verify a ledger
+          </Link>
+        </div>
+      </section>
+
+      <p className="text-xs text-muted">Simulated trading only. Not financial advice. Updated every minute.</p>
+    </div>
+  );
+}
+
 export default async function AgentPage({ params }: Props) {
   const p = await agentProfile((await params).agent.toUpperCase());
   if (!p) notFound();
+  if (p.stage === "learning") return <Learning p={p} />;
   const started = p.stats.trades > 0;
   const r = p.readiness;
 
@@ -38,16 +152,7 @@ export default async function AgentPage({ params }: Props) {
           <p className="t-label text-cyan">Agentboard</p>
           <h1 className="num mt-3 text-4xl text-cream sm:text-5xl">{p.agent}</h1>
           <p className="mt-3 text-sm text-mist">
-            {p.github ? (
-              <>
-                Taught by{" "}
-                <a href={`https://github.com/${p.github}`} target="_blank" rel="noreferrer" className="text-cyan underline-offset-2 hover:underline">
-                  @{p.github}
-                </a>
-              </>
-            ) : (
-              "Owner not shown"
-            )}
+            <Owner p={p} />
             {" · "}trading on its own since {fmtDateTime(p.startedAt)}
             {p.status === "paused" ? " · paused by its owner" : ""}
           </p>
