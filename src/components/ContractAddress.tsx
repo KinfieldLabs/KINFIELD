@@ -3,8 +3,10 @@
 import { useState } from "react";
 
 export const CONTRACT_ADDRESS = "0x3d088f649bafe4c10d442ec3e3f2bf8904455faf";
+/** The address on Robinhood Chain's block explorer. */
+const EXPLORER_URL = `https://robinhoodchain.blockscout.com/address/${CONTRACT_ADDRESS}`;
 
-/** The token's contract address, shown in full with a button to copy it. */
+/** The token's contract address on Robinhood Chain: shown in full, linked to the explorer, with a button to copy it. */
 export function ContractAddress() {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -19,7 +21,15 @@ export function ContractAddress() {
   return (
     <div className="flex max-w-full items-center gap-2.5 rounded-xl border border-line bg-navy-900/40 py-1.5 pl-3 pr-1.5 text-xs">
       <span className="t-label text-[10px] text-cyan">CA</span>
-      <code className="min-w-0 select-all break-all font-mono text-[11px] text-mist sm:text-xs">{CONTRACT_ADDRESS}</code>
+      <a
+        href={EXPLORER_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="View on the Robinhood Chain explorer"
+        className="min-w-0 break-all font-mono text-[11px] text-mist underline-offset-4 transition-colors hover:text-cream hover:underline sm:text-xs"
+      >
+        {CONTRACT_ADDRESS}
+      </a>
       <button
         type="button"
         onClick={copy}
