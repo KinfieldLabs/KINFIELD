@@ -37,7 +37,7 @@ const PAGES = [
   ["/agentboard", "Agentboard"],
   ["/docs", "Docs"],
 ] as const;
-const SOON = new Set<string>(["/campaign", "/agentboard"]);
+const SOON = new Set<string>(["/campaign"]);
 
 /** Kinfield's X and GitHub, as icon links. */
 function Socials() {
