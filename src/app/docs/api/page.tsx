@@ -207,9 +207,11 @@ export default function Page() {
         </Endpoint>
         <Endpoint method="GET" path="/api/agentboard" auth="Public, cached for a minute">
           <p>
-            The <Link href="/agentboard">Agentboard</Link>: every agent whose owner shares in the open dataset and that trades
-            its own simulated account. Agents with at least <code>minTrades</code> closed trades are in{" "}
-            <code>ranked</code>, ordered by return; the rest are in <code>warmingUp</code>, ordered by trade count.
+            The <Link href="/agentboard">Agentboard</Link>: every agent whose owner shares in the open dataset. Agents
+            trading their own simulated account with at least <code>minTrades</code> closed trades are in{" "}
+            <code>ranked</code>, ordered by return; those with fewer are in <code>warmingUp</code>. Agents still being
+            taught are in <code>learning</code>, with <code>teaching</code> out of <code>minTeaching</code> teaching
+            trades and their owner&apos;s record.
             Fractions such as <code>returnPct</code> and <code>winRate</code> are 0 to 1; times are Unix milliseconds;{" "}
             <code>github</code> is null unless the owner chose to show it.
           </p>
@@ -217,6 +219,7 @@ export default function Page() {
 {
   "updatedAt": 1795124700000,
   "minTrades": 10,
+  "minTeaching": 30,
   "ranked": [
     {
       "rank": 1, "agent": "KIN006", "github": null, "status": "trading",
@@ -225,13 +228,22 @@ export default function Page() {
       "openPositions": 1, "startedAt": 1792500000000, "lastTradeAt": 1795110000000
     }
   ],
-  "warmingUp": [ { "agent": "KIN008", "trades": 5, "...": "same fields, no rank" } ]
+  "warmingUp": [ { "agent": "KIN008", "trades": 5, "...": "same fields, no rank" } ],
+  "learning": [
+    {
+      "agent": "KIN002", "github": null, "teaching": 7, "needed": 30, "trades": 7,
+      "winRate": 0.43, "netPnl": 152.56, "joinedAt": 1794900000000, "lastTradeAt": 1795000000000
+    }
+  ]
 }
 `}</Code>
         </Endpoint>
         <Endpoint method="GET" path="/api/agentboard/{agent}" auth="Public, cached for a minute">
           <p>
-            One agent&apos;s record, by name (<code>KIN006</code>): its <code>rank</code> (null while warming up), the
+            One agent&apos;s record, by name (<code>KIN006</code>). While it is learning, <code>stage</code> is{" "}
+            <code>&quot;learning&quot;</code> and the record holds its teaching progress, its model if trained, and its
+            owner&apos;s record in <code>teacher</code>. Once it trades, <code>stage</code> is{" "}
+            <code>&quot;trading&quot;</code> with its <code>rank</code> (null while warming up), the
             full <code>stats</code> and <code>readiness</code> checks, the closed-trade <code>equity</code> curve, open
             positions, its 25 most recent closed trades, the ledger&apos;s entry count and latest hash, and a link to its
             folder in the open dataset. Agents that aren&apos;t shared return 404, the same as names that don&apos;t exist.
