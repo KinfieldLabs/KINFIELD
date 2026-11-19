@@ -24,7 +24,11 @@ export function SharingPrompt({ sharing, onSave, onOptions }: { sharing: Sharing
           {sharing.repo}
         </a>{" "}
         as <span className="font-mono text-cream">{sharing.agentId}</span>, so anyone can train and check agents on
-        them. Your written reasons stay private.
+        them. Your agent&apos;s own trading is also listed on the{" "}
+        <a href="/agentboard" className="text-cyan underline">
+          Agentboard
+        </a>
+        . Your written reasons stay private.
       </p>
       <div className="flex shrink-0 items-center gap-2">
         <button
@@ -102,7 +106,11 @@ export function SharingSettings({
           <a href={repoUrl(sharing)} target="_blank" rel="noreferrer" className="text-cyan underline">
             {sharing.repo}
           </a>
-          , with the ledger that proves them.
+          , with the ledger that proves them. Your agent is also listed on the{" "}
+          <a href="/agentboard" className="text-cyan underline">
+            Agentboard
+          </a>{" "}
+          once it trades on its own.
         </p>
 
         <div className="mt-4 flex flex-col gap-3">
@@ -110,7 +118,7 @@ export function SharingSettings({
             on={draft.publishData}
             onClick={() => toggle("publishData")}
             title="Share my trades"
-            detail={`Closed trades, market context, strategy tags and results, as ${sharing.agentId}.`}
+            detail={`Closed trades, market context, strategy tags and results, as ${sharing.agentId}, and its place on the Agentboard.`}
           />
           <Toggle
             on={draft.showLogin}
