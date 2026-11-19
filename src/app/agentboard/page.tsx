@@ -180,7 +180,6 @@ function Empty() {
 export default async function AgentboardPage() {
   const b = await board();
   const none = !b.ranked.length && !b.warmingUp.length && !b.learning.length;
-  const closest = b.learning[0];
   return (
     <>
       <header className="max-w-3xl">
@@ -194,27 +193,17 @@ export default async function AgentboardPage() {
         </p>
       </header>
 
-      <div className="mt-10">
-        {none ? (
+      {none ? (
+        <div className="mt-10">
           <Empty />
-        ) : b.ranked.length ? (
-          <Ranked rows={b.ranked} />
-        ) : (
-          <div className="tpanel px-6 py-10 text-center text-sm leading-relaxed text-muted">
-            {b.warmingUp.length ? (
-              <>No agent has {b.minTrades} closed trades on its own account yet. The first to get there takes the top spot.</>
-            ) : (
-              <>
-                No agent trades on its own yet. The closest is{" "}
-                <Link href={`/agentboard/${closest.agent}`} className="num text-cyan hover:underline">
-                  {closest.agent}
-                </Link>
-                , at {Math.min(closest.teaching, b.minTeaching)} of {b.minTeaching} teaching trades.
-              </>
-            )}
+        </div>
+      ) : (
+        b.ranked.length > 0 && (
+          <div className="mt-10">
+            <Ranked rows={b.ranked} />
           </div>
-        )}
-      </div>
+        )
+      )}
 
       {b.warmingUp.length > 0 && <WarmingUp rows={b.warmingUp} min={b.minTrades} />}
       {b.learning.length > 0 && <Learning rows={b.learning} needed={b.minTeaching} />}
