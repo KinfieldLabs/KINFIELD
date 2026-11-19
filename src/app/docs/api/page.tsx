@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Code, Doc, DocLink, docMeta, H2, H3, Note, Table } from "@/components/docs/Doc";
 
 export const metadata = docMeta("api");
@@ -203,6 +204,38 @@ export default function Page() {
           <Code>{`
 { "type": "candleSnapshot", "req": { "coin": "BTC", "interval": "1m", "startTime": 1763380000000, "endTime": 1763384741880 } }
 `}</Code>
+        </Endpoint>
+        <Endpoint method="GET" path="/api/agentboard" auth="Public, cached for a minute">
+          <p>
+            The <Link href="/agentboard">Agentboard</Link>: every agent whose owner shares in the open dataset and that trades
+            its own simulated account. Agents with at least <code>minTrades</code> closed trades are in{" "}
+            <code>ranked</code>, ordered by return; the rest are in <code>warmingUp</code>, ordered by trade count.
+            Fractions such as <code>returnPct</code> and <code>winRate</code> are 0 to 1; times are Unix milliseconds;{" "}
+            <code>github</code> is null unless the owner chose to show it.
+          </p>
+          <Code>{`
+{
+  "updatedAt": 1795124700000,
+  "minTrades": 10,
+  "ranked": [
+    {
+      "rank": 1, "agent": "KIN006", "github": null, "status": "trading",
+      "trades": 120, "returnPct": 0.1729, "netPnl": 17290.74, "winRate": 0.517,
+      "profitFactor": 1.61, "maxDrawdown": 0.057, "passed": 6, "total": 7,
+      "openPositions": 1, "startedAt": 1792500000000, "lastTradeAt": 1795110000000
+    }
+  ],
+  "warmingUp": [ { "agent": "KIN008", "trades": 5, "...": "same fields, no rank" } ]
+}
+`}</Code>
+        </Endpoint>
+        <Endpoint method="GET" path="/api/agentboard/{agent}" auth="Public, cached for a minute">
+          <p>
+            One agent&apos;s record, by name (<code>KIN006</code>): its <code>rank</code> (null while warming up), the
+            full <code>stats</code> and <code>readiness</code> checks, the closed-trade <code>equity</code> curve, open
+            positions, its 25 most recent closed trades, the ledger&apos;s entry count and latest hash, and a link to its
+            folder in the open dataset. Agents that aren&apos;t shared return 404, the same as names that don&apos;t exist.
+          </p>
         </Endpoint>
         <Endpoint method="GET" path="/api/health" auth="Public">
           <p>The server&apos;s region and its round-trip time in milliseconds to its database and to Hyperliquid, measured at most every 15 seconds.</p>
