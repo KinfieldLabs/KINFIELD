@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const pages: [string, number][] = [
     ["/", 1],
     ["/simulate", 0.9],
+    ["/agentboard", 0.8],
     ["/privacy", 0.3],
     ["/terms", 0.3],
     ...DOCS.map((d): [string, number] => [docHref(d.slug), d.slug ? 0.6 : 0.7]),
