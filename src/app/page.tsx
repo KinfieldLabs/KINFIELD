@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { Constellation, type ShapeName } from "@/components/Constellation";
+import { ContractAddress } from "@/components/ContractAddress";
 import { Logo, Mark } from "@/components/Logo";
 import { HyperliquidMark } from "@/components/HyperliquidMark";
 import { InView, Lines, SmoothScroll } from "@/components/motion";
@@ -420,6 +421,7 @@ export default function Home() {
                 </a>
                 .
               </p>
+              <ContractAddress />
             </div>
             <nav aria-label="Footer" className="grid grid-cols-2 gap-x-10 gap-y-3 sm:grid-cols-3">
               {FOOTER_LINKS.map((l) =>
